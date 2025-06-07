@@ -1,0 +1,31 @@
+name: 'fount-charCI'
+description: 'run CI on fount character'
+branding:
+  color: 'black'
+  icon: 'activity'
+inputs:
+  CI-filepath:
+    description: 'CI file path for testing your character'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - run: git clone https://github.com/steve02081504/fount.git ./fount
+      shell: bash
+    - run: cp -r $GITHUB_ACTION_PATH/default_data ./fount/data
+      shell: bash
+    - uses: actions/checkout@v4
+      with:
+        path: ./fount/data/users/CI-user/chars/CI-char
+    - uses: denoland/setup-deno@v2
+      id: deno
+      with:
+        deno-version: vx.x.x
+        cache: true
+    - uses: actions/cache@v4
+      with:
+        path: ./node_modules
+        key: fount-charCI-node-modules
+    - run: |
+        deno run --allow-scripts --allow-all --node-modules-dir=auto $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
+      shell: bash
