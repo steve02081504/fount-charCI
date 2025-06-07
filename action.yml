@@ -1,0 +1,87 @@
+name: "fount-charCI"
+description: "run CI on fount character"
+branding:
+  color: "black"
+  icon: "activity"
+inputs:
+  CI-filepath:
+    description: "CI file path for testing your character"
+    required: true
+  CI-username:
+    description: "CI username"
+    required: false
+    default: CI-user
+  github-token:
+    description: "github token"
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: "composite"
+  steps:
+    - run: git clone --depth 1 --branch master https://github.com/steve02081504/fount.git $GITHUB_ACTION_PATH/fount
+      shell: bash
+    - run: |
+        cp -r $GITHUB_ACTION_PATH/default_data $GITHUB_ACTION_PATH/fount/.vm_data_charCI
+        # 若不相等
+        if [ "${{ inputs.CI-username }}" != "CI-user" ]; then
+          # 重命名 $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/CI-user 为 $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}
+          mv $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/CI-user $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}
+          # 重命名 $GITHUB_ACTION_PATH/fount/.vm_data_charCI/config.json/data/users/CI-user 为 $GITHUB_ACTION_PATH/fount/.vm_data_charCI/config.json/data/users/${{ inputs.CI-username }}
+          CONFIG_PATH="$GITHUB_ACTION_PATH/fount/.vm_data_charCI/config.json"
+          jq ".users[\"${{ inputs.CI-username }}\"] = .users[\"CI-user\"] | del(.users[\"CI-user\"])" "$CONFIG_PATH" > "${CONFIG_PATH}.tmp" && mv "${CONFIG_PATH}.tmp" "$CONFIG_PATH"
+        fi
+        mkdir -p "$GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/chars"
+        mkdir -p "$GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/settings"
+      shell: bash
+    - name: Checkout user character repository
+      run: |
+        git clone --depth 1 https://github.com/${{ github.repository }}.git $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/chars/CI-char
+        cd $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/chars/CI-char
+        git checkout ${{ github.sha }}
+      shell: bash
+    - run: |
+        export CI_username=${{ inputs.CI-username }}
+        # 读取$GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/$CI_username/chars/CI-char/fount.json/dirname 为 CI-charname
+        export CI_charname=$(jq -r '.dirname' $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/$CI_username/chars/CI-char/fount.json)
+        if [ "$CI_charname" != "CI-char" ]; then
+          # 重命名 $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/$CI_username/chars/CI-char 为 $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/$CI_username/chars/${CI_charname}
+          mv $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/$CI_username/chars/CI-char $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/$CI_username/chars/${CI_charname}
+        fi
+        # 保存 env
+        echo "CI_charname=${CI_charname}" >> $GITHUB_ENV
+        echo "CI_username=${CI_username}" >> $GITHUB_ENV
+      shell: bash
+    - uses: denoland/setup-deno@v2
+      id: deno
+      with:
+        deno-version: vx.x.x
+        cache: true
+    - uses: actions/cache@v4
+      with:
+        path: ./node_modules
+        key: fount-charCI-node-modules
+    - run: |
+        deno run --allow-scripts --allow-all --node-modules-dir=auto --v8-flags=--expose-gc $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
+      shell: bash
+    - name: Delete Previous Cache # 删除之前的缓存确保缓存随着项目运行而更新
+      continue-on-error: true
+      shell: bash
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete "fount-charCI-node-modules" --confirm
+        gh actions-cache delete "deno-cache-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('**/deno.lock') }}" --confirm
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+    - name: Save Cache
+      uses: actions/cache/save@v4
+      with:
+        path: ./node_modules
+        key: fount-charCI-node-modules
+    - name: get deno dir
+      shell: bash
+      run: echo "DENO_DIR=$(deno info --json | jq -r '.denoDir')" >> $GITHUB_ENV
+    - name: Save Cache
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.DENO_DIR }}
+        key: deno-cache-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('**/deno.lock') }}

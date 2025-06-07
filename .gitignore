@@ -1,0 +1,5 @@
+/node_modules
+/fount
+/.ci-workspaces
+/default_data/users/CI-user/chars
+/default_data/users/CI-user/settings
