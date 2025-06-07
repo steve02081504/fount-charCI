@@ -1,0 +1,33 @@
+{
+	// 使用 IntelliSense 了解相关属性。
+	// 悬停以查看现有属性的描述。
+	// 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"request": "launch",
+			"name": "Launch Program",
+			"type": "node",
+			"program": "${workspaceFolder}/index.mjs",
+			"args": [
+				".github/workflows/CI.mjs",
+			],
+			"cwd": "${workspaceFolder}",
+			"env": {
+				"CI_charname": "GentianAphrodite",
+				"CI_username": "CI-user",
+				"GITHUB_ACTION_PATH": "${workspaceFolder}"
+			},
+			"runtimeExecutable": "deno",
+			"runtimeArgs": [
+				"run",
+				"--inspect-wait",
+				"--allow-scripts",
+				"--allow-all",
+				"--node-modules-dir=auto",
+				"--v8-flags=--expose-gc",
+			],
+			"attachSimplePort": 9229
+		}
+	]
+}
