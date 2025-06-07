@@ -1,0 +1,22 @@
+{
+	"port": 8931,
+	"data": {
+		"users": {
+			"CI-user": {
+				"username": "CI-user",
+				"auth": {
+					"userId": "114514",
+					"password": "1919810",
+					"loginAttempts": 0,
+					"lockedUntil": null,
+					"refreshTokens": []
+				},
+				"jobs": {},
+				"locales": [],
+				"defaultParts": {},
+				"timers": {}
+			}
+		},
+		"revokedTokens": {}
+	}
+}
