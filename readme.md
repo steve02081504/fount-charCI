@@ -6,44 +6,46 @@
 [![日本語](https://raw.githubusercontent.com/gosquared/flags/master/flags/flags/shiny/48/Japan.png)](./docs/readme.ja-JP.md)
 [![中文](https://raw.githubusercontent.com/gosquared/flags/master/flags/flags/shiny/48/China.png)](./docs/readme.zh-CN.md)
 
-A concise and powerful continuous integration tool designed specifically for [fount](https://github.com/steve02081504/fount) char developers to automate testing and ensure your chars run reliably.
+A concise yet powerful Continuous Integration (CI) tool designed for [fount](https://github.com/steve02081504/fount) character developers to automate testing and ensure your character runs stably.
 
-It helps you catch code-level errors, such as syntax issues and failed API calls, ensuring your char's fundamental functionality before release and preventing low-level errors from impacting the user experience.
+It helps you catch code-level errors such as syntax issues, API call failures, and tool execution exceptions. This guarantees the basic usability of your character before release, preventing low-level errors from impacting the user experience.
 
 ## ✨ Features
 
-This CI tool focuses on testing the programmatic robustness of your char, primarily covering the following areas:
+This CI tool focuses on testing the programmatic robustness of your character, covering the following areas:
 
-- ✅ **Basic Loading Test**: Ensures the char file has no significant syntax errors and can be correctly loaded by the fount core.
-- ✅ **AI Source Integration Test**: Verifies that the char can handle chat requests correctly, both with and without an AI source configured.
-- ✅ **Core Interface Test**: Ensures that fount core interfaces like `SetData` are called and responded to correctly by the char.
-- ✅ **Reply Handler Behavior Test**: Tests whether your built-in `replyHandler` executes as expected by simulating specific commands returned by the AI.
+- ✅ **Structured Testing**: Organise your test cases using Jest-like `test` and `subtest` blocks, making your test scripts clear and easy to read.
+- ✅ **Assertion-Driven**: Verify test results with the `assert` function, which reports clear error messages upon failure.
+- ✅ **AI Source & Fallback Testing**: Validate that the character handles requests correctly, both with and without a configured AI source.
+- ✅ **Multi-step Interaction Simulation**: Accurately simulate the complete "think -> use tool -> respond" flow to test complex `replyHandler` logic.
+- ✅ **Environment Interaction Testing**: Supports integration with Node.js modules like `fs` (file system) and `http` (network) to test real-world functionalities such as file I/O, code execution, and web browsing.
+- ✅ **System Log Inspection**: Check system-level information returned to the AI after a tool is executed (e.g., file contents, search results) to ensure the tool's output is as expected.
 
-> Due to the non-deterministic nature of LLM-generated content, this tool **cannot** evaluate the quality of your prompt or the AI's generated content. Its core value lies in ensuring the correctness of the char's programmatic parts.
+> Considering the non-deterministic nature of LLM-generated content, this tool **cannot** evaluate the quality of prompts or AI-generated responses. Its core value lies in guaranteeing the correctness of the character's programmatic parts.
 
 ## 🚀 Quick Start
 
-Set up automated testing for your fount char project in just three simple steps.
+Set up automated testing for your fount character project in just three steps.
 
 ### Step 1: Create the Workflow File
 
-In the root directory of your char project, create the CI configuration file: `.github/workflows/CI.yml`.
+In your character's project root, create the CI configuration file: `.github/workflows/CI.yml`.
 
 ### Step 2: Fill in the Template Content
 
-Paste the following content into your `CI.yml` file. It will automatically run the tests when you push code.
+Paste the following content into your `CI.yml` file. It will automatically run tests on every push.
 
 ```yaml
 name: Test Running
 
 on:
-  # Allow manual triggers
+  # Allow manual triggering
   workflow_dispatch:
   # Trigger automatically on changes to .mjs files
   push:
     paths:
       - '**.mjs'
-    # Ignore tag pushes to avoid triggering on releases
+    # Ignore pushes to tags to avoid triggering on releases
     tags-ignore:
       - '*'
     # Allow pushes from any branch
@@ -62,74 +64,153 @@ jobs:
 
 ### Step 3: Create the CI Test Script
 
-In your project root, create the CI entry file `.github/workflows/CI.mjs` and write your test cases based on your char's logic.
-
-Here is a basic test template:
+In your character's project root, create the CI entry point file: `.github/workflows/CI.mjs`. Here is a modern, basic test template:
 
 ```javascript
-// fountCharCI is automatically injected into the global scope and can be used directly.
+// fountCharCI is automatically injected into the global scope and can be used directly
 const CI = fountCharCI;
 
-// --- Test Case 1: No AI Source ---
-// Simulate a scenario without a configured AI source to check if the char responds correctly.
-// This is useful for testing the char's default behavior or built-in commands.
-await CI.runOutput();
+// --- Test Case 1: Fallback handling without an AI source ---
+await CI.test('Fallback without AI source', async () => {
+	// Remove the AI source to test the fallback handler. We assume your char loads the AI source via the AIsource field in its data.
+	await CI.char.interfaces.config.SetData({ AIsource: '' });
+	// runOutput() without arguments simulates an empty or default request
+	await CI.runOutput();
+	// If no error is thrown, the test passes.
+});
 
-// --- Test Case 2: Basic AI Conversation ---
-// 1. Configure a mock AI source named 'CI'.
-//    We assume your char uses the data.AIsource field to load the AI source.
+// --- Test Case 2: Basic AI Response ---
+await CI.test('Basic AI Response', async () => {
+	// Ensure an AI source is set. We assume your char loads the AI source via the AIsource field in its data.
+	await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
+
+	// Simulate the AI source returning "Test!"
+	const result = await CI.runOutput('Test!');
+	
+	// Assert that the character's final output matches what the AI source returned
+	CI.assert(result.content === 'Test!', 'Character failed to return the AI content correctly.');
+});
+```
+
+Once you've completed these steps, the test workflow will run automatically every time you push changes to `.mjs` files to your GitHub repository.
+
+## 📖 CI API Reference
+
+`fount-charCI` provides a simple API for building your tests.
+
+### `CI.test(name, asyncFn)`
+Defines a top-level test suite. `name` is a description of the test, and `asyncFn` is an asynchronous function containing the test logic. Tests are executed sequentially.
+
+### `CI.subtest(name, asyncFn)`
+Defines a nested sub-test, used to break down a large test block into smaller, related units. Its usage is identical to `CI.test`.
+
+### `CI.runOutput(input)`
+This is the core function of the CI, used to simulate a complete user-AI interaction and return the final result.
+
+- **`input` (String):** When `input` is a string, it simulates the AI directly returning that string as the final answer.
+  ```javascript
+  // Simulate the AI directly responding with "Hello"
+  const result = await CI.runOutput('Hello');
+  CI.assert(result.content === 'Hello');
+  ```
+- **`input` (Array):** When `input` is an array of strings, it simulates a multi-step interaction flow. Each element in the array represents a response from the AI. This is crucial for testing tool calls (`replyHandler`).
+  ```javascript
+  // Simulate the AI first calling a tool, then providing a final answer
+  await CI.runOutput([
+  	'<tool>do_something</tool>', // Step 1: AI returns a tool call
+  	'I have done something.'      // Step 2: AI returns the final message
+  ]);
+  ```
+
+### `CI.assert(condition, message)`
+Performs an assertion. If `condition` is `false`, the test will fail immediately and throw an error with the given `message`.
+
+### The `result` Object
+`CI.runOutput` returns a `result` object, which contains the result from the character's `GetReply`. For a standard fount character, it includes the following properties:
+- **`result.content` (String):** The final text content presented to the user.
+- **`result.logContextBefore` (Array|Undefined):** An array of log messages recording the entire conversation history **before** the final `content` was generated. This includes messages with `system` (e.g., tool execution results), `user`, and `assistant` roles. It is very useful for inspecting tool outputs.
+
+### `CI.char`
+Allows you to easily access the character object itself.
+```javascript
+// Set or change the AI source
 await CI.char.interfaces.config.SetData({
 	AIsource: 'CI'
 });
-
-// 2. Simulate the AI source returning "Test!"
-await CI.runOutput('Test!').then((result) => {
-	// 3. Assert that the char's final output matches the AI's response.
-	CI.assert(result.content === 'Test!', 'Char failed to return content correctly with an AI source');
-});
-
-console.log('✅ All basic tests passed!');
 ```
-
-After completing these steps, the test workflow will run automatically every time you push changes to `.mjs` files to your GitHub repository.
 
 ## 💡 Advanced Usage
 
-### Testing the Reply Handler
+### Testing Function Tools (Tools / Reply Handler)
 
-`replyHandler` is one of the core features of a fount char. You can test if it correctly parses and executes commands by using `runOutput` to simulate an AI response containing special instructions.
+The key to testing function tools is to use the array form of `runOutput` to simulate the "tool call -> final reply" flow and to check for side effects and system logs.
 
-**Example:** Test a `<run>` command that creates a directory on the server.
+**Example:** Test a `<run-bash>` function that creates a directory on the server.
 
 ```javascript
 import fs from 'node:fs';
+import path from 'node:path';
 
-// runOutput accepts an array to simulate scenarios where the AI source is called multiple times.
-// The first call returns a <run> command, and the second returns plain text.
-await CI.runOutput([
-	// First AI response, containing a shell command to execute.
-	`<run>\nmkdir test_dir\n</run>\nThis is a supplementary note after the command execution.`,
-	// Second AI response.
-	`The directory has been created.`
-]).then((result) => {
-	// Assertion 1: Check if the 'test_dir' directory was actually created.
-	CI.assert(fs.existsSync('test_dir'), 'replyHandler failed to execute the <run> command to create the directory');
-	
-	// Assertion 2: Check if the char requested the second AI call and returned the final content.
-	CI.assert(result.content === 'The directory has been created.', 'replyHandler did not request the AI source again as expected after execution');
+const CI = fountCharCI;
+const testWorkspace = './ci-test-workspace';
+fs.mkdirSync(testWorkspace, { recursive: true });
+await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
+
+await CI.test('Function: <run-bash>', async () => {
+	const testDir = path.join(testWorkspace, 'bash_test_dir');
+
+	// Simulate the AI first calling <run-bash>, then giving a confirmation message
+	const result = await CI.runOutput([
+		`<run-bash>mkdir ${testDir}</run-bash>`,
+		'Directory created.'
+	]);
+
+	// Assertion 1: Check for side effects -> Was the directory actually created?
+	CI.assert(fs.existsSync(testDir), '<run-bash> failed to execute command.');
+
+	// Assertion 2: Check the final output -> Did the AI regenerate the message?
+	CI.assert(result.content === 'Directory created.', 'Final message is incorrect.');
 });
+```
 
-console.log('✅ Reply handler test passed!');
+### Inspecting a Tool's System Output
+
+Some functions (like file reading or web browsing) don't produce direct side effects but instead return their results to the AI as a `system` message. You can verify this by inspecting `result.logContextBefore`.
+
+**Example:** Test a `<view-file>` function.
+
+```javascript
+import fs from 'node:fs';
+import path from 'node:path';
+
+const CI = fountCharCI;
+const testWorkspace = './ci-test-workspace';
+const testFilePath = path.join(testWorkspace, 'test_file.txt');
+const fileContent = 'Hello from the file!';
+fs.writeFileSync(testFilePath, fileContent, 'utf-8');
+await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
+
+await CI.test('Function: <view-file>', async () => {
+	const result = await CI.runOutput([
+		`<view-file>${testFilePath}</view-file>`,
+		`File content is: ${fileContent}`
+	]);
+
+	// Find the system log returned after the tool execution
+	const systemLog = result.logContextBefore.find(log => log.role === 'system');
+
+	// Assertion: Check if the system log contains the correct file content
+	CI.assert(systemLog && systemLog.content.includes(fileContent), '<view-file> failed to read file content.');
+});
 ```
 
 ### Debugging: Outputting Prompt Content
 
-When debugging, you might want to see the complete `prompt` structure sent to the AI. You can enable logging for this as follows:
+When debugging, you might want to see the full `prompt` structure sent to the AI. You can enable logging for this as follows:
 
 ```javascript
-// Place this line at the top of your test script.
+// Place this line at the top of your test script
 CI.echo_prompt_struct = true;
-
-// Subsequent calls to CI.runOutput() will print the detailed prompt object in the logs.
+// Subsequent CI.runOutput() calls will print the detailed prompt object in the GitHub Actions log
 await CI.runOutput('Hello');
 ```
