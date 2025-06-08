@@ -38,6 +38,10 @@ Paste the following content into your `CI.yml` file. It will automatically run t
 ```yaml
 name: Test Running
 
+permissions:
+  contents: read
+  actions: write # for update caches
+
 on:
   # Allow manual triggering
   workflow_dispatch:

@@ -7,6 +7,10 @@ inputs:
   CI-filepath:
     description: 'CI file path for testing your character'
     required: true
+  github-token:
+    description: 'github token'
+    required: false
+    default: ${{ github.token }}
 runs:
   using: 'composite'
   steps:
@@ -26,6 +30,29 @@ runs:
       with:
         path: ./node_modules
         key: fount-charCI-node-modules
+    - name: Delete Previous Cache
+      continue-on-error: true
+      shell: bash
+      working-directory: ./fount/data/users/CI-user/chars/CI-char
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete "fount-charCI-node-modules" --confirm
+        gh actions-cache delete "deno-cache-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('**/deno.lock') }}" --confirm
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
     - run: |
         deno run --allow-scripts --allow-all --node-modules-dir=auto $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
       shell: bash
+    - name: Save Cache
+      uses: actions/cache/save@v4
+      with:
+        path: ./node_modules
+        key: fount-charCI-node-modules
+    - name: get deno dir
+      shell: bash
+      run: echo "DENO_DIR=$(deno info --json | jq -r '.denoDir')" >> $GITHUB_ENV
+    - name: Save Cache
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.DENO_DIR }}
+        key: deno-cache-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('**/deno.lock') }}

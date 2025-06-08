@@ -38,6 +38,10 @@
 ```yaml
 name: Test Running
 
+permissions:
+  contents: read
+  actions: write # 用于更新缓存
+
 on:
   # 允许手动触发
   workflow_dispatch:

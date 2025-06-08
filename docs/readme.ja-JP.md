@@ -38,6 +38,10 @@
 ```yaml
 name: Test Running
 
+permissions:
+  contents: read
+  actions: write # キャッシュを更新するため
+
 on:
   # 手動でのトリガーを許可
   workflow_dispatch:
