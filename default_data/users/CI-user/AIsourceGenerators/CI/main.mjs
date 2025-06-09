@@ -9,13 +9,18 @@ export default {
 
 const configTemplate = {}
 
+import path from 'node:path'
 import { structPromptToSingle } from '../../../../../src/public/shells/chat/src/server/prompt_struct.mjs'
+const { AsyncStorage } = await import(path.resolve(process.env.GITHUB_ACTION_PATH + '/index.mjs'))
 
-function getOutput() {
-	if (!fountCharCI.output) return 'If I never see you again, good morning, good afternoon, and good night.'
-	if (Object(fountCharCI.output) instanceof String) return fountCharCI.output
-	else if (Object(fountCharCI.output) instanceof Array) return fountCharCI.output.shift()
-	else return fountCharCI.output
+function getOutput(output) {
+	if (!output) return 'If I never see you again, good morning, good afternoon, and good night.'
+	if (Object(output) instanceof String) return output
+	else if (Object(output) instanceof Array) {
+		if (!output.length) throw new Error('CI.output is an empty array, check your CI code.')
+		return output.shift()
+	}
+	else return output
 }
 
 async function GetSource(config) {
@@ -40,18 +45,20 @@ async function GetSource(config) {
 
 		Unload: () => { },
 		Call: async (prompt) => {
+			const CI = AsyncStorage.getStore() ?? {}
+			CI.result ??= {}
+			CI.result.prompt_single = prompt
 			return {
-				content: getOutput()
+				content: getOutput(CI.output)
 			}
 		},
 		StructCall: async (/** @type {prompt_struct_t} */ prompt_struct) => {
-			if (fountCharCI.echo_prompt_struct) {
-				console.log('prompt_struct:')
-				console.dir(prompt_struct, { depth: 4 })
-			}
-			const prompt = structPromptToSingle(prompt_struct)
+			const CI = AsyncStorage.getStore() ?? {}
+			CI.result ??= {}
+			CI.result.prompt_struct = prompt_struct
+			CI.result.prompt_single = structPromptToSingle(prompt_struct)
 			return {
-				content: getOutput()
+				content: getOutput(CI.output)
 			}
 		},
 		Tokenizer: {

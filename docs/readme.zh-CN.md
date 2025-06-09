@@ -15,11 +15,12 @@
 本 CI 工具专注于测试角色的程序健壮性，主要覆盖以下范围：
 
 - ✅ **结构化测试**：使用类似 Jest 的 `test` 和 `subtest` 块来组织你的测试用例，使测试脚本清晰易读。
+- ✅ **并发与顺序测试**：支持按需并行执行测试以提高速度，或通过 `await` 保证测试按顺序执行。
 - ✅ **断言驱动**：通过 `assert` 函数验证测试结果，失败时会明确报告错误信息。
 - ✅ **AI 源与Fallback测试**：验证角色在有或没有配置 AI 源的情况下，都能正常处理请求。
 - ✅ **多步交互模拟**：精准模拟 AI “思考 -> 使用工具 -> 回答” 的完整流程，测试复杂的 `replyHandler` 逻辑。
 - ✅ **环境交互测试**：支持与文件系统（`fs`）、网络（`http`）等 Node.js 模块集成，测试如文件读写、代码执行、网页浏览等真实世界的功能。
-- ✅ **系统日志审查**：能够检查工具执行后返回给 AI 的系统级信息（如文件内容、搜索结果），确保工具的输出符合预期。
+- ✅ **系统日志与Prompt审查**：能够检查工具执行后返回给 AI 的系统级信息，甚至能获取发送给 AI 的最终 Prompt，确保逻辑和数据处理符合预期。
 
 > 考虑到LLM生成内容的不确定性，本工具**无法**对 Prompt 的质量或 AI 生成内容的优劣进行评估。它的核心价值在于保障角色的程序部分的正确性。
 
@@ -88,11 +89,12 @@ await CI.test('Basic AI Response', async () => {
 	// 确保 AI 源已设置，我们假设你的char通过data的AIsource字段加载AI源
 	await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 
-	// 模拟 AI 源返回 "测试！"
-	const result = await CI.runOutput('测试！');
-	
+	// 模拟用户输入 "你好"，并检查角色返回的最终内容
+	const { reply } = await CI.runInput('你好');
+
 	// 断言角色的最终输出是否与 AI 源返回的一致
-	CI.assert(result.content === '测试！', 'Character failed to return the AI content correctly.');
+	// CI 模拟 AI 源默认会返回 "If I never see you again, good morning, good afternoon, and good night."
+	CI.assert(reply.content.includes('good morning'), 'Character failed to return the AI content correctly.');
 });
 ```
 
@@ -100,49 +102,104 @@ await CI.test('Basic AI Response', async () => {
 
 ## 📖 CI API 详解
 
-`fount-charCI` 提供了一套简洁的 API 来构建测试。
+`fount-charCI` 提供了一套简洁而强大的 API 来构建你的测试。
 
-### `CI.test(name, asyncFn)`
-定义一个顶层测试套件。`name` 是测试的描述，`asyncFn` 是包含测试逻辑的异步函数。测试会按顺序执行。
+### 测试套件 (Test Suites)
 
-### `CI.subtest(name, asyncFn)`
-定义一个嵌套的子测试，用于将一个大测试块分解为更小的、相关的单元。用法与 `CI.test` 相同。
+#### `CI.test(name, asyncFn, options)`
 
-### `CI.runOutput(input)`
-这是 CI 的核心函数，用于模拟一次完整的用户-AI交互，并返回最终结果。
+定义一个顶层测试套件。
 
-- **`input` (String):** 当 `input` 是一个字符串时，它模拟 AI 直接返回该字符串作为最终答案。
+- `name` (String): 测试的描述。
+- `asyncFn` (Function): 包含测试逻辑的异步函数。
+- `options` (Object, 可选): 测试行为的配置项。
+  - `start_emoji` (String): 测试开始时显示的表情符号，默认为 `🧪`。
+  - `success_emoji` (String): 测试成功时显示的表情符号，默认为 `✅`。
+  - `fail_emoji` (String): 测试失败时显示的表情符号，默认为 `❌`。
+  - `clean_chat_log` (Boolean): 是否在测试开始前清空上下文的聊天记录，默认为 `true`。
+  - `group_output` (Boolean): 是否在 GitHub Actions 日志中将此测试的输出折叠成分组，默认为 `true`。
+
+#### `CI.subtest(name, asyncFn, options)`
+
+定义一个嵌套的子测试。它在功能上与 `CI.test` 完全相同，但 `group_output` 默认为 `false`，避免github actions日志不支持group嵌套导致的UI混乱。
+
+#### 并发与顺序测试
+
+`CI.test` 和 `CI.subtest` 都是异步的，并返回一个 Promise。
+
+- **顺序执行**：如果你希望测试按顺序一个个执行，请在调用时使用 `await`。这是保证测试之间依赖关系（如前一个测试设置环境，后一个测试使用）的常用方式。
+
   ```javascript
-  // 模拟 AI 直接回答 "Hello"
-  const result = await CI.runOutput('Hello');
-  CI.assert(result.content === 'Hello');
-  ```
-- **`input` (Array):** 当 `input` 是一个字符串数组时，它模拟一个多步骤的交互流程。数组中的每个元素代表 AI 的一次返回。这对于测试工具（`replyHandler`）调用至关重要。
-  ```javascript
-  // 模拟 AI 先调用工具，然后给出最终回答
-  await CI.runOutput([
-  	'<tool>do_something</tool>', // 第1步：AI 返回工具调用
-  	'I have done something.'      // 第2步：AI 返回最终消息
-  ]);
+  await CI.test('第一步：设置环境', async () => { /* ... */ });
+  await CI.test('第二步：验证结果', async () => { /* ... */ });
   ```
 
-### `CI.assert(condition, message)`
+- **并发执行**：如果你有多个独立的测试，可以不使用 `await` 来调用它们，使其并发执行以缩短总测试时间。CI 运行器会自动等待所有被调用的测试完成后再结束。
+
+  ```javascript
+  // 这两个测试会同时开始执行
+  CI.test('独立测试 A', async () => { /* ... */ });
+  CI.test('独立测试 B', async () => { /* ... */ });
+  ```
+
+### 模拟交互 (Simulating Interaction)
+
+#### `CI.runInput(input, request)`
+
+模拟**用户发送一条消息**给角色。这是测试角色对输入响应的最直接方式。
+
+- `input` (String | Object): 用户输入。
+  - 如果是字符串，则模拟用户发送纯文本消息。
+  - 如果是对象，则可以构建更复杂的消息，如 `{ role: 'user', content: 'hello', files: [] }`。
+- `request` (Object, 可选): 一个部分请求对象，用于覆盖默认的请求参数（如 `username`, `chat_id` 等）。
+- **返回值** (Object): 返回一个包含详细调试信息的对象：
+  - `reply` (Object): 角色 `GetReply` 返回的最终结果，与 `CI.runOutput` 的返回值相同。
+  - `prompt_struct` (Object): 发送给 AI 的结构化 Prompt。对于调试 Prompt Engineering 至关重要。
+  - `prompt_single` (String): 发送给 AI 的、被转换成单个字符串的 Prompt。
+
+#### `CI.runOutput(output, request)`
+
+模拟 **AI 的输出**。此函数非常适合测试角色的 `replyHandler`，即处理 AI 返回的工具调用或特殊指令的逻辑。
+
+- `output` (String | Array<String>): 模拟 AI 的返回内容。
+  - 如果是字符串，模拟 AI 直接返回该字符串作为最终答案。
+  - 如果是字符串数组，模拟多步骤交互。数组的第一个元素是 AI 的第一次返回（通常是工具调用），第二个元素是第二次，以此类推。
+- `request` (Object, 可选): 同 `CI.runInput`。
+- **返回值** (Object): 返回角色 `GetReply` 的最终结果，通常包含 `content` 和 `logContextBefore` 等属性。
+
+#### `result` 对象
+
+`CI.runInput` 和 `CI.runOutput` 的返回结果（或 `reply` 属性）源自角色 `GetReply` 的返回值。对于一个标准的 fount 角色，它通常包含：
+
+- **`content`** (String): 最终呈现给用户的文本内容。
+- **`logContextBefore`** (Array|Undefined): 一个消息日志数组，记录了在生成最终 `content` **之前**的所有对话历史，包括 `system` 角色（如工具执行结果）、`user` 角色和 `assistant` 角色的消息。这对于检查工具的输出非常有用。
+
+### 辅助工具 (Utility Tools)
+
+#### `CI.assert(condition, message)`
+
 进行断言。如果 `condition` 为 `false`，测试将立即失败，并抛出包含 `message` 的错误。
 
-### `result` 对象
-`CI.runOutput` 返回一个 `result` 对象，包含char的GetReply返回的结果。
-对于标准的fount角色，它包含以下属性：
-- **`result.content` (String):** 最终呈现给用户的文本内容。
-- **`result.logContextBefore` (Array|Undefined):** 一个消息日志数组，记录了在生成最终 `content` **之前**的所有对话历史，包括 `system` 角色（如工具执行结果）、`user` 角色和 `assistant` 角色的消息。这对于检查工具的输出非常有用。
+#### `CI.char`
 
-### `CI.char`
-允许你轻松访问角色对象本身。
+一个快捷方式，允许你直接访问当前加载的角色实例对象。你可以用它来调用角色的内部方法或修改其配置。
+
 ```javascript
 // 设置或更改 AI 源
-await CI.char.interfaces.config.SetData({
-	AIsource: 'CI'
-});
+await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 ```
+
+#### `CI.clearChatLog()`
+
+清空当前测试上下文中的聊天记录 (`test_chat_log`)。
+
+#### `CI.sleep(ms)`
+
+暂停当前异步函数的执行指定的毫秒数。等同于 `new Promise(resolve => setTimeout(resolve, ms))`。
+
+#### `CI.wait(fn, timeout)`
+
+一个轮询工具，会反复执行 `fn` 函数，直到它返回一个真值（truthy value）或超时（默认为10000ms）。这对于等待某些异步的后台操作完成非常有用。
 
 ## 💡 进阶用法
 
@@ -161,7 +218,7 @@ const testWorkspace = './ci-test-workspace';
 fs.mkdirSync(testWorkspace, { recursive: true });
 await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 
-await CI.test('Function: <run-bash>', async () => {
+CI.test('Function: <run-bash>', async () => {
 	const testDir = path.join(testWorkspace, 'bash_test_dir');
 
 	// 模拟 AI 先调用 <run-bash>，然后给出确认信息
@@ -195,7 +252,7 @@ const fileContent = 'Hello from the file!';
 fs.writeFileSync(testFilePath, fileContent, 'utf-8');
 await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 
-await CI.test('Function: <view-file>', async () => {
+CI.test('Function: <view-file>', async () => {
 	const result = await CI.runOutput([
 		`<view-file>${testFilePath}</view-file>`,
 		`File content is: ${fileContent}`
@@ -209,13 +266,6 @@ await CI.test('Function: <view-file>', async () => {
 });
 ```
 
-### 调试：输出 Prompt 内容
+## 仍然感到迷茫？
 
-在调试时，你可能希望看到发送给 AI 的完整 `prompt` 结构。可以通过以下方式开启日志输出：
-
-```javascript
-// 将此行代码放在你的测试脚本顶部
-CI.echo_prompt_struct = true;
-// 后续的 CI.runOutput() 调用将在 GitHub Actions 日志中打印详细的 prompt 对象
-await CI.runOutput('Hello');
-```
+来看看世界上第一个fount角色[`龙胆`是怎么做的](https://github.com/steve02081504/GentianAphrodite/blob/master/.github/workflows/CI.mjs)！

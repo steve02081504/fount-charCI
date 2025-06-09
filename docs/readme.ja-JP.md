@@ -15,11 +15,12 @@
 本CIツールは、キャラクターのプログラム的な堅牢性をテストすることに特化しており、主に以下の範囲をカバーします：
 
 - ✅ **構造化テスト**：Jestのような `test` と `subtest` ブロックを使用してテストケースを整理し、テストスクリプトを明確で読みやすくします。
+- ✅ **並行テストと順次テスト**：テストを並列実行して速度を向上させたり、`await` を使用してテストを順次実行したりできます。
 - ✅ **アサーション駆動**：`assert` 関数を通じてテスト結果を検証し、失敗した場合にはエラーメッセージを明確に報告します。
 - ✅ **AIソースとフォールバックのテスト**：AIソースが設定されている場合とされていない場合の両方で、キャラクターがリクエストを正常に処理できることを検証します。
 - ✅ **マルチステップ対話シミュレーション**：AIの「思考→ツール使用→回答」という完全なプロセスを正確にシミュレートし、複雑な `replyHandler` のロジックをテストします。
 - ✅ **環境連携テスト**：ファイルシステム（`fs`）やネットワーク（`http`）などのNode.jsモジュールとの連携をサポートし、ファイルの読み書き、コード実行、ウェブブラウジングなどの実世界での機能をテストします。
-- ✅ **システムログの検証**：ツール実行後にAIに返されるシステムレベルの情報（ファイルの内容、検索結果など）をチェックし、ツールの出力が期待通りであることを確認します。
+- ✅ **システムログとプロンプトの検証**：ツール実行後にAIに返されるシステムレベルの情報や、AIに送信された最終的なプロンプトまで確認でき、ロジックとデータ処理が期待通りであることを保証します。
 
 > LLMが生成する内容の不確実性を考慮し、本ツールはプロンプトの品質やAIが生成する内容の優劣を評価することは**できません**。その核心的な価値は、キャラクターのプログラム部分の正しさを保証することにあります。
 
@@ -88,11 +89,12 @@ await CI.test('Basic AI Response', async () => {
 	// AIソースが設定されていることを確認します。キャラクターがdataのAIsourceフィールド経由でAIソースを読み込むと仮定します。
 	await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 
-	// AIソースが "テスト！" を返すとシミュレートします
-	const result = await CI.runOutput('テスト！');
-	
+	// ユーザーが「こんにちは」と送信した際のキャラクターの最終的な応答をチェックします
+	const { reply } = await CI.runInput('こんにちは');
+
 	// キャラクターの最終的な出力がAIソースの戻り値と一致するかをアサートします
-	CI.assert(result.content === 'テスト！', 'Character failed to return the AI content correctly.');
+	// CIの模擬AIソースはデフォルトで "If I never see you again, good morning, good afternoon, and good night." を返します
+	CI.assert(reply.content.includes('good morning'), 'Character failed to return the AI content correctly.');
 });
 ```
 
@@ -100,48 +102,84 @@ await CI.test('Basic AI Response', async () => {
 
 ## 📖 CI API 詳細
 
-`fount-charCI` は、テストを構築するためのシンプルなAPIを提供します。
+`fount-charCI` は、テストを構築するためのシンプルかつ強力なAPIを提供します。
 
-### `CI.test(name, asyncFn)`
-トップレベルのテストスイートを定義します。`name` はテストの説明で、`asyncFn` はテストロジックを含む非同期関数です。テストは順番に実行されます。
+### テストスイート (Test Suites)
 
-### `CI.subtest(name, asyncFn)`
-ネストされたサブテストを定義します。大きなテストブロックをより小さく、関連するユニットに分割するために使用します。使い方は `CI.test` と同じです。
+#### `CI.test(name, asyncFn, options)`
+トップレベルのテストスイートを定義します。
+- `name` (String): テストの説明。
+- `asyncFn` (Function): テストロジックを含む非同期関数。
+- `options` (Object, 任意): テストの動作を設定するオプション。
+    - `start_emoji` (String): テスト開始時に表示される絵文字。デフォルト: `🧪`。
+    - `success_emoji` (String): テスト成功時に表示される絵文字。デフォルト: `✅`。
+    - `fail_emoji` (String): テスト失敗時に表示される絵文字。デフォルト: `❌`。
+    - `clean_chat_log` (Boolean): テスト開始前にコンテキストのチャットログをクリアするかどうか。デフォルト: `true`。
+    - `group_output` (Boolean): GitHub Actionsのログでこのテストの出力をグループに折りたたむか。デフォルト: `true`。
 
-### `CI.runOutput(input)`
-これはCIのコア機能で、完全なユーザーとAIの対話をシミュレートし、最終結果を返します。
+#### `CI.subtest(name, asyncFn, options)`
+ネストされたサブテストを定義します。機能的には `CI.test` と全く同じですが、`group_output` がデフォルトで `false` になっており、GitHub ActionsログでのネストされたグループによるUIの混乱を避けます。
 
-- **`input` (String):** `input` が文字列の場合、AIがその文字列を最終的な回答として直接返すことをシミュレートします。
+#### 並行テストと順次テスト
+`CI.test` と `CI.subtest` は非同期であり、Promiseを返します。
+- **順次実行**: テストを呼び出す際に `await` を使用すると、次のテストが始まる前に現在のテストが完了することを保証します。これは、テスト間に依存関係がある場合に不可欠です。
   ```javascript
-  // AIが直接 "Hello" と応答するのをシミュレート
-  const result = await CI.runOutput('Hello');
-  CI.assert(result.content === 'Hello');
+  await CI.test('ステップ1：環境設定', async () => { /* ... */ });
+  await CI.test('ステップ2：結果の検証', async () => { /* ... */ });
   ```
-- **`input` (Array):** `input` が文字列の配列の場合、マルチステップの対話フローをシミュレートします。配列の各要素はAIからの応答を表します。これはツール呼び出し（`replyHandler`）のテストに不可欠です。
+- **並行実行**: 複数の独立したテストがある場合、`await` なしで呼び出すことで並行して実行でき、総テスト時間を短縮できます。CIランナーは、呼び出されたすべてのテストが完了するのを自動的に待ってから終了します。
   ```javascript
-  // AIがまずツールを呼び出し、その後で最終的な回答をするのをシミュレート
-  await CI.runOutput([
-  	'<tool>do_something</tool>', // ステップ1：AIがツール呼び出しを返す
-  	'I have done something.'      // ステップ2：AIが最終メッセージを返す
-  ]);
+  // これら2つのテストは同時に開始されます
+  CI.test('独立したテストA', async () => { /* ... */ });
+  CI.test('独立したテストB', async () => { /* ... */ });
   ```
 
-### `CI.assert(condition, message)`
+### インタラクションのシミュレーション (Simulating Interaction)
+
+#### `CI.runInput(input, request)`
+**ユーザーがキャラクターにメッセージを送信する**のをシミュレートします。これは、入力に対するキャラクターの応答をテストする最も直接的な方法です。
+- `input` (String | Object): ユーザーの入力。
+    - 文字列の場合、ユーザーからのプレーンテキストメッセージをシミュレートします。
+    - オブジェクトの場合、`{ role: 'user', content: 'hello', files: [] }` のように、より複雑なメッセージを構築できます。
+- `request` (Object, 任意): デフォルトのリクエストパラメータ（`username`、`chat_id`など）を上書きするための部分的なリクエストオブジェクト。
+- **戻り値** (Object): 詳細なデバッグ情報を含むオブジェクトを返します。
+    - `reply` (Object): キャラクターの `GetReply` から返された最終的な結果オブジェクト。`CI.runOutput` の戻り値と同じです。
+    - `prompt_struct` (Object): AIに送信された構造化プロンプト。プロンプトエンジニアリングのデバッグに不可欠です。
+    - `prompt_single` (String): AIに送信された、単一文字列に変換されたプロンプト。
+
+#### `CI.runOutput(output, request)`
+**AIの出力**をシミュレートします。この関数は、キャラクターの `replyHandler`、つまりAIからのツール呼び出しや特殊な指示を処理するロジックのテストに最適です。
+- `output` (String | Array<String>): シミュレートするAIの応答内容。
+    - 文字列の場合、AIがその文字列を最終的な回答として直接返すことをシミュレートします。
+    - 文字列の配列の場合、マルチステップの対話をシミュレートします。配列の最初の要素がAIの最初の応答（通常はツール呼び出し）、2番目がその次の応答、といった具合です。
+- `request` (Object, 任意): `CI.runInput` と同じです。
+- **戻り値** (Object): キャラクターの `GetReply` からの最終結果。通常、`content` や `logContextBefore` などのプロパティを含みます。
+
+#### `result` オブジェクト
+`CI.runOutput` の戻り値（または `CI.runInput` の `reply` プロパティ）は、キャラクターの `GetReply` からのものです。標準的なfountキャラクターの場合、通常は以下を含みます：
+- **`content`** (String): ユーザーに最終的に表示されるテキストコンテンツ。
+- **`logContextBefore`** (Array|Undefined): 最終的な `content` が生成される**前**のすべての対話履歴を記録したメッセージログの配列です。これには `system`（例：ツール実行結果）、`user`、`assistant` ロールのメッセージが含まれます。ツールの出力を確認するのに非常に便利です。
+
+### ユーティリティツール (Utility Tools)
+
+#### `CI.assert(condition, message)`
 アサーションを実行します。`condition` が `false` の場合、テストは直ちに失敗し、`message` を含むエラーがスローされます。
 
-### `result` オブジェクト
-`CI.runOutput` は `result` オブジェクトを返します。これにはキャラクターの `GetReply` から返された結果が含まれます。標準的なfountキャラクターの場合、以下のプロパティが含まれます：
-- **`result.content` (String):** ユーザーに最終的に表示されるテキストコンテンツ。
-- **`result.logContextBefore` (Array|Undefined):** 最終的な `content` が生成される**前**のすべての対話履歴を記録したメッセージログの配列です。これには `system`（例：ツール実行結果）、`user`、`assistant` ロールのメッセージが含まれます。ツールの出力を確認するのに非常に便利です。
-
-### `CI.char`
-キャラクターオブジェクト自体に簡単にアクセスできます。
+#### `CI.char`
+現在ロードされているキャラクターインスタンスオブジェクトに直接アクセスできるショートカットです。これを使用して、キャラクターの内部メソッドを呼び出したり、設定を変更したりできます。
 ```javascript
 // AIソースを設定または変更する
-await CI.char.interfaces.config.SetData({
-	AIsource: 'CI'
-});
+await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 ```
+
+#### `CI.clearChatLog()`
+現在のテストコンテキスト内のチャット履歴（`test_chat_log`）をクリアします。
+
+#### `CI.sleep(ms)`
+現在の非同期関数の実行を指定されたミリ秒数だけ一時停止します。`new Promise(resolve => setTimeout(resolve, ms))` と同等です。
+
+#### `CI.wait(fn, timeout)`
+`fn` 関数がtruthyな値を返すか、タイムアウト（デフォルト：10000ms）に達するまで繰り返し実行するポーリングユーティリティです。非同期のバックグラウンド操作の完了を待つのに便利です。
 
 ## 💡 高度な使用法
 
@@ -160,7 +198,7 @@ const testWorkspace = './ci-test-workspace';
 fs.mkdirSync(testWorkspace, { recursive: true });
 await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 
-await CI.test('Function: <run-bash>', async () => {
+CI.test('Function: <run-bash>', async () => {
 	const testDir = path.join(testWorkspace, 'bash_test_dir');
 
 	// AIがまず <run-bash> を呼び出し、次に確認メッセージを出すのをシミュレート
@@ -194,7 +232,7 @@ const fileContent = 'Hello from the file!';
 fs.writeFileSync(testFilePath, fileContent, 'utf-8');
 await CI.char.interfaces.config.SetData({ AIsource: 'CI' });
 
-await CI.test('Function: <view-file>', async () => {
+CI.test('Function: <view-file>', async () => {
 	const result = await CI.runOutput([
 		`<view-file>${testFilePath}</view-file>`,
 		`File content is: ${fileContent}`
@@ -208,13 +246,6 @@ await CI.test('Function: <view-file>', async () => {
 });
 ```
 
-### デバッグ：プロンプト内容の出力
+## それでも迷う場合は？
 
-デバッグ中に、AIに送信される完全な `prompt` 構造を確認したい場合があるかもしれません。以下のようにしてログ出力を有効にできます：
-
-```javascript
-// この行をテストスクリプトの先頭に配置します
-CI.echo_prompt_struct = true;
-// これ以降の CI.runOutput() 呼び出しは、GitHub Actions のログに詳細なプロンプトオブジェクトを出力します
-await CI.runOutput('Hello');
-```
+世界初のfountキャラクター[`龍胆` がどのように実装しているか](https://github.com/steve02081504/GentianAphrodite/blob/master/.github/workflows/CI.mjs)を見てみましょう！
