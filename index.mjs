@@ -14,12 +14,72 @@ import { Router as WsAbleRouter } from 'npm:websocket-express@^3.1.3'
 import { VirtualConsole } from './scripts/virtualConsole.mjs'
 
 export const AsyncStorage = new AsyncLocalStorage()
+function getContext(name) {
+	const parent_context = AsyncStorage.getStore() ?? {}
+	const base_console = parent_context.console ?? console
+
+	const console = new VirtualConsole({
+		base_console,
+		error_handler: (e) => {
+			refine_error(e)
+			const title = e.message.split('\n')[0]
+			console.log(`::error file=${e.filename?.replace(chardir + '/', '')},line=${e.lineNumber},endLine=${e.endLineNumber || e.lineNumber},col=${e.columnNumber},endColumn=${e.endColumnNumber || e.columnNumber},title=${e.name}::${fail_emoji} ${name}: ${title}`)
+			console.error(e.stack)
+		}
+	})
+
+	const test_names = [...(parent_context.test_names ?? [])]
+	if (name) test_names.push(name)
+
+	const testHash = getTestHash(test_names)
+	const workSpacePath = path.resolve('./.ci-workspaces', testHash)
+	const router = new WsAbleRouter()
+	routers[testHash] = router
+
+	return {
+		console,
+		test_names,
+		failed: false,
+		parent_context,
+		subtest_count: 0,
+		hooks: {
+			beforeAll: [],
+			beforeEach: [],
+			afterEach: [],
+			afterAll: [],
+		}, // 存储当前层级的钩子
+		tests: [],
+		has_started: false,
+		context: {
+			workSpace: {
+				path: workSpacePath,
+				clear: () => {
+					fs.rmSync(workSpacePath, { recursive: true, force: true })
+					fs.mkdirSync(workSpacePath, { recursive: true })
+				}
+			},
+			http: {
+				router,
+				url: `http://localhost:8972/${testHash}`
+			},
+			metaData: {},
+		}
+	}
+}
+const baseContext = getContext()
+const context = new Proxy({}, {
+	get: (target, prop) => Reflect.get(AsyncStorage.getStore() ?? baseContext, prop),
+	getOwnPropertyDescriptor: (target, prop) => Reflect.getOwnPropertyDescriptor(baseContext, prop),
+	getPrototypeOf: (target) => Reflect.getPrototypeOf(baseContext),
+	set: (target, prop, value) => Reflect.set(AsyncStorage.getStore() ?? baseContext, prop, value),
+	setPrototypeOf: (target, value) => Reflect.setPrototypeOf(baseContext, value)
+})
 const baseConsole = console
 globalThis.console = new Proxy({}, {
-	get: (target, prop) => Reflect.get(AsyncStorage.getStore()?.console ?? baseConsole, prop),
+	get: (target, prop) => Reflect.get(context.console, prop),
 	getOwnPropertyDescriptor: (target, prop) => Reflect.getOwnPropertyDescriptor(baseConsole, prop),
 	getPrototypeOf: (target) => Reflect.getPrototypeOf(baseConsole),
-	set: (target, prop, value) => Reflect.set(AsyncStorage.getStore()?.console ?? baseConsole, prop, value),
+	set: (target, prop, value) => Reflect.set(context.console, prop, value),
 	setPrototypeOf: (target, value) => Reflect.setPrototypeOf(baseConsole, value)
 })
 
@@ -41,6 +101,7 @@ const unhandledRejectionHandler = (reason, promise) => {
 		store.failed = true
 	} else {
 		console.error('💥 [Unhandled Rejection outside test context]:', error.stack || error)
+		process.exit(1)
 	}
 	hasFailures = true
 }
@@ -88,57 +149,9 @@ async function runTest(name, fn, {
 	fail_emoji = '❌',
 	is_top_level = false,
 } = {}) {
-	const parent_context = AsyncStorage.getStore() ?? {}
-	const base_console = parent_context.console ?? baseConsole
-
-	const console = new VirtualConsole({
-		base_console,
-		error_handler: (e) => {
-			refine_error(e)
-			const title = e.message.split('\n')[0]
-			console.log(`::error file=${e.filename?.replace(chardir + '/', '')},line=${e.lineNumber},endLine=${e.endLineNumber || e.lineNumber},col=${e.columnNumber},endColumn=${e.endColumnNumber || e.columnNumber},title=${e.name}::${fail_emoji} ${name}: ${title}`)
-			console.error(e.stack)
-		}
-	})
-
-	const test_names = [...(parent_context.test_names ?? [])]
-	test_names.push(name)
-
-	const testHash = getTestHash(test_names)
-	const workSpacePath = path.resolve('./.ci-workspaces', testHash)
-	const router = new WsAbleRouter()
-	routers[testHash] = router
-
-	const context = {
-		is_top_level,
-		console,
-		test_names,
-		failed: false,
-		parent_context,
-		subtest_count: 0,
-		hooks: {
-			beforeAll: [],
-			beforeEach: [],
-			afterEach: [],
-			afterAll: [],
-		}, // 存储当前层级的钩子
-		tests: [],
-		has_started: false,
-		context: {
-			workSpace: {
-				path: workSpacePath,
-				clear: () => {
-					fs.rmSync(workSpacePath, { recursive: true, force: true })
-					fs.mkdirSync(workSpacePath, { recursive: true })
-				}
-			},
-			http: {
-				router,
-				url: `http://localhost:8972/${testHash}`
-			},
-			metaData: {},
-		}
-	}
+	const context = getContext(name)
+	const parent_context = context.parent_context
+	context.is_top_level = is_top_level
 
 	totalTests++
 	const isTopLevelTest = parent_context.is_top_level !== false
