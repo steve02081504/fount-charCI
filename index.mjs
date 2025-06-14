@@ -187,8 +187,8 @@ async function runTest(name, fn, {
 				while (context.subtest_count > 0) await CI.sleep(1000) // 可能有子测试被then但未被await
 			}
 			finally {
-				if (context.hooks?.afterAll) await context.hooks.afterAll()
-				if (parent_context.hooks?.afterEach) await parent_context.hooks.afterEach()
+				if (context.hooks?.afterAll) await Promise.all(context.hooks.afterAll.map(fn => fn()))
+				if (parent_context.hooks?.afterEach) await Promise.all(parent_context.hooks.afterEach.map(fn => fn()))
 
 				fs.rmSync(workSpacePath, { recursive: true, force: true }) // 最终清理
 			}
@@ -218,7 +218,7 @@ async function runTest(name, fn, {
 
 		if (!is_top_level) {
 			if (isTopLevelTest) console.log('::endgroup::')
-			parent_context.console.log(console.outputs.trim().replace(start_emoji, final_message))
+			parent_context.console.log(console.outputs.trim().replace(/^.*/, final_message))
 		}
 
 		test_names.pop()
