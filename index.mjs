@@ -268,9 +268,10 @@ const CI = globalThis.fountCharCI = {
 		context.hooks.afterEach.push(fn)
 	},
 	test(name, fn, config = {}) {
-		context.tests.push({ name, fn, config })
+		const tests = context.tests
+		tests.push({ name, fn, config })
 		const run = () => {
-			store.tests.pop()
+			tests.pop()
 			return runTest(name, fn, config)
 		}
 		return {
