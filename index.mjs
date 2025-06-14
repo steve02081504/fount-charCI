@@ -217,7 +217,7 @@ async function runTest(name, fn, {
 
 		if (!is_top_level) {
 			if (isTopLevelTest) console.log('::endgroup::')
-			base_console.log(console.outputs.trim().replace(start_emoji, final_message))
+			parent_context.console.log(console.outputs.trim().replace(start_emoji, final_message))
 		}
 
 		test_names.pop()
