@@ -161,7 +161,7 @@ async function runTest(name, fn, {
 	is_top_level = false,
 } = {}) {
 	const context = getContext(name)
-	const { test_names, parent_context } = context
+	const { test_names, parent_context, console } = context
 	context.is_top_level = is_top_level
 
 	totalTests++
