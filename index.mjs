@@ -13,6 +13,65 @@ import { Router as WsAbleRouter } from 'npm:websocket-express@^3.1.3'
 
 import { VirtualConsole } from './scripts/virtualConsole.mjs'
 
+const unhandledRejectionHandler = (reason, promise) => {
+	const store = AsyncStorage.getStore()
+	const error = reason instanceof Error ? reason : new Error(String(reason))
+	if (store) {
+		error.message = `[Unhandled Rejection] ${error.stack || error}`
+		store.console.error(error)
+		store.failed = true
+	} else {
+		console.error('💥 [Unhandled Rejection outside test context]:', error.stack || error)
+		process.exit(1)
+	}
+	hasFailures = true
+}
+process.on('unhandledRejection', unhandledRejectionHandler)
+process.on('uncaughtException', unhandledRejectionHandler)
+
+
+const app = express()
+app.use(express.json({ limit: Infinity }))
+app.use(express.urlencoded({ limit: Infinity, extended: true }))
+app.use(fileUpload())
+app.use(cookieParser())
+const httpServer = await new Promise((resolve) => {
+	http.createServer(app).listen(8972, resolve)
+})
+const routers = {}
+app.use((req, res, next) => {
+	let subpath = req.path.split('/').slice(1)[0]
+	if (!routers[subpath]) return next()
+	return routers[subpath](req, res, next)
+})
+app.use((req, res, next, err) => {
+	const store = AsyncStorage.getStore()
+	if (store) {
+		store.console.error(err)
+		store.failed = true
+	}
+	next(err)
+})
+
+function getTestHash(test_names) {
+	const hash = createHash('sha256')
+	hash.update(test_names.join('/'))
+	return hash.digest('hex').substring(0, 16)
+}
+
+function refine_error(error) {
+	const stackLines = error.stack.split('\n')
+	let firstStackLine = stackLines[1]
+	if (firstStackLine.includes('at Object.assert') && firstStackLine.includes(import.meta.url)) firstStackLine = stackLines[2] // 去除assert
+	const match = firstStackLine.match(/at\s+(?:.*\s+)?\(?(.+):(\d+):(\d+)\)?$/)
+	if (match) {
+		const [, filePath, line, column] = match
+		error.filename ??= fileURLToPath(filePath)
+		error.lineNumber ??= Number(line)
+		error.columnNumber ??= Number(column)
+	}
+}
+
 export const AsyncStorage = new AsyncLocalStorage()
 function getContext(name) {
 	const parent_context = AsyncStorage.getStore() ?? {}
@@ -91,57 +150,6 @@ let active_waitting_count = 0
 let totalTests = 0
 let passedTests = 0
 const failedTestsInfo = []
-
-const unhandledRejectionHandler = (reason, promise) => {
-	const store = AsyncStorage.getStore()
-	const error = reason instanceof Error ? reason : new Error(String(reason))
-	if (store) {
-		error.message = `[Unhandled Rejection] ${error.stack || error}`
-		store.console.error(error)
-		store.failed = true
-	} else {
-		console.error('💥 [Unhandled Rejection outside test context]:', error.stack || error)
-		process.exit(1)
-	}
-	hasFailures = true
-}
-process.on('unhandledRejection', unhandledRejectionHandler)
-process.on('uncaughtException', unhandledRejectionHandler)
-
-
-const app = express()
-app.use(express.json({ limit: Infinity }))
-app.use(express.urlencoded({ limit: Infinity, extended: true }))
-app.use(fileUpload())
-app.use(cookieParser())
-const httpServer = await new Promise((resolve) => {
-	http.createServer(app).listen(8972, resolve)
-})
-const routers = {}
-app.use((req, res, next) => {
-	let subpath = req.path.split('/').slice(1)[0]
-	if (!routers[subpath]) return next()
-	return routers[subpath](req, res, next)
-})
-
-function refine_error(error) {
-	const stackLines = error.stack.split('\n')
-	let firstStackLine = stackLines[1]
-	if (firstStackLine.includes('at Object.assert') && firstStackLine.includes(import.meta.url)) firstStackLine = stackLines[2] // 去除assert
-	const match = firstStackLine.match(/at\s+(?:.*\s+)?\(?(.+):(\d+):(\d+)\)?$/)
-	if (match) {
-		const [, filePath, line, column] = match
-		error.filename ??= fileURLToPath(filePath)
-		error.lineNumber ??= Number(line)
-		error.columnNumber ??= Number(column)
-	}
-}
-
-function getTestHash(test_names) {
-	const hash = createHash('sha256')
-	hash.update(test_names.join('/'))
-	return hash.digest('hex').substring(0, 16)
-}
 
 async function runTest(name, fn, {
 	start_emoji = '🧪',
