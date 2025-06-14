@@ -16,7 +16,7 @@ import { VirtualConsole } from './scripts/virtualConsole.mjs'
 export const AsyncStorage = new AsyncLocalStorage()
 function getContext(name) {
 	const parent_context = AsyncStorage.getStore() ?? {}
-	const base_console = parent_context.console ?? console
+	const base_console = parent_context.console ?? globalThis.console
 
 	const console = new VirtualConsole({
 		base_console,
