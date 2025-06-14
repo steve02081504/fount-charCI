@@ -240,7 +240,7 @@ const CI = globalThis.fountCharCI = {
 	},
 	async sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)) },
 	async wait(fn, timeout = 10000) {
-		const test_names = AsyncStorage.getStore()?.test_names ?? []
+		const test_names = context.test_names
 		active_waitting_count += test_names.length
 		const afn = async () => fn()
 		try {
@@ -256,20 +256,19 @@ const CI = globalThis.fountCharCI = {
 		}
 	},
 	beforeAll(fn) {
-		AsyncStorage.getStore().hooks.beforeAll.push(fn)
+		context.hooks.beforeAll.push(fn)
 	},
 	afterAll(fn) {
-		AsyncStorage.getStore().hooks.afterAll.push(fn)
+		context.hooks.afterAll.push(fn)
 	},
 	beforeEach(fn) {
-		AsyncStorage.getStore().hooks.beforeEach.push(fn)
+		context.hooks.beforeEach.push(fn)
 	},
 	afterEach(fn) {
-		AsyncStorage.getStore().hooks.afterEach.push(fn)
+		context.hooks.afterEach.push(fn)
 	},
 	test(name, fn, config = {}) {
-		const store = AsyncStorage.getStore()
-		store.tests.push({ name, fn, config })
+		context.tests.push({ name, fn, config })
 		const run = () => {
 			store.tests.pop()
 			return runTest(name, fn, config)
@@ -349,7 +348,7 @@ function get_req(diff) {
 
 if (char.interfaces.config && char.interfaces.chat) {
 	CI.runOutput = async (output, request) => {
-		(AsyncStorage.getStore() ?? {}).output = output
+		context.output = output
 		const req = get_req(request)
 		return await char.interfaces.chat.GetReply(req)
 	}
@@ -360,7 +359,7 @@ if (char.interfaces.config && char.interfaces.chat) {
 			files: []
 		}
 		if (!(input instanceof Array)) input = [input]
-		const result = (AsyncStorage.getStore() ?? {}).result = {}
+		const result = context.result = {}
 		const req = get_req({
 			chat_log: input,
 			...request,
