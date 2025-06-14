@@ -13,6 +13,11 @@ import { Router as WsAbleRouter } from 'npm:websocket-express@^3.1.3'
 
 import { VirtualConsole } from './scripts/virtualConsole.mjs'
 
+{
+	const { set_start } = await import(path.resolve('./fount/src/server/base.mjs'))
+	await set_start()
+}
+
 const unhandledRejectionHandler = (reason, promise) => {
 	const store = AsyncStorage.getStore()
 	const error = reason instanceof Error ? reason : new Error(String(reason))
@@ -218,8 +223,9 @@ async function runTest(name, fn, {
 
 		if (!is_top_level) {
 			if (isTopLevelTest) console.log('::endgroup::')
-			parent_context.console.log(console.outputs.trim().replace(/^.*/, final_message))
+			console.outputs = console.outputs.trim().replace(/^.*/, final_message)
 		}
+		parent_context.console.log(console.outputs)
 
 		test_names.pop()
 		active_test_count--
