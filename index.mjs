@@ -129,6 +129,7 @@ const baseContext = Object.assign(getContext(), {
 	console: globalThis.console,
 	is_top_level: true
 })
+baseContext.parent_context = baseContext
 const context = new Proxy({}, {
 	get: (target, prop) => Reflect.get(AsyncStorage.getStore() ?? baseContext, prop),
 	getOwnPropertyDescriptor: (target, prop) => Reflect.getOwnPropertyDescriptor(baseContext, prop),
