@@ -190,7 +190,7 @@ async function runTest(name, fn, {
 				if (context.hooks?.afterAll) await Promise.all(context.hooks.afterAll.map(fn => fn()))
 				if (parent_context.hooks?.afterEach) await Promise.all(parent_context.hooks.afterEach.map(fn => fn()))
 
-				fs.rmSync(workSpacePath, { recursive: true, force: true }) // 最终清理
+				fs.rmSync(context.workSpace.path, { recursive: true, force: true }) // 最终清理
 			}
 		})
 	} catch (e) {
