@@ -73,8 +73,9 @@ function refine_error(error) {
 }
 
 export const AsyncStorage = new AsyncLocalStorage()
+const baseContext = {}
 function getContext(name) {
-	const parent_context = AsyncStorage.getStore() ?? {}
+	const parent_context = AsyncStorage.getStore() ?? baseContext
 	const base_console = parent_context.console ?? globalThis.console
 
 	const console = new VirtualConsole({
@@ -125,11 +126,10 @@ function getContext(name) {
 		}
 	}
 }
-const baseContext = Object.assign(getContext(), {
+Object.assign(baseContext, getContext(), {
 	console: globalThis.console,
 	is_top_level: true
 })
-baseContext.parent_context = baseContext
 const context = new Proxy({}, {
 	get: (target, prop) => Reflect.get(AsyncStorage.getStore() ?? baseContext, prop),
 	getOwnPropertyDescriptor: (target, prop) => Reflect.getOwnPropertyDescriptor(baseContext, prop),
