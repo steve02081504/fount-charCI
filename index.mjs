@@ -1,5 +1,7 @@
 // --- 初始 Fount 环境设置 ---
 // 这部分代码只在启动时运行一次，用于初始化Fount服务的基础环境。
+process.on('warning', e => console.warn(e.stack))
+
 import { AsyncLocalStorage } from 'node:async_hooks'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -21,7 +23,9 @@ import cookieParser from 'npm:cookie-parser@^1.4.0'
 import fileUpload from 'npm:express-fileupload@^1.5.0'
 import { Router as WsAbleRouter } from 'npm:websocket-express@^3.1.3'
 
-import { VirtualConsole } from './scripts/virtualConsole.mjs'
+import { VirtualConsole, setGlobalConsoleReflect, defaultConsole } from 'npm:@steve02081504/virtual-console'
+import { FullProxy } from 'npm:full-proxy'
+import { registerContext } from 'npm:als-registry'
 
 // --- 全局变量和常量 ---
 const charname = process.env.CI_charname
@@ -54,9 +58,8 @@ let passedTests = 0
 const allTestResults = []
 const mainStartTime = performance.now()
 
-
 /**
- * @typedef {import('./scripts/virtualConsole.mjs').VirtualConsole} VirtualConsole
+ * @typedef {import('npm:steve02081504/virtual-console').VirtualConsole} VirtualConsole
  */
 
 /**
@@ -193,6 +196,7 @@ function refineError(error) {
 
 // --- 异步上下文管理 (核心) ---
 const testAsyncStorage = new AsyncLocalStorage()
+registerContext('charCI', testAsyncStorage)
 
 const baseContext = {}
 /**
@@ -254,7 +258,7 @@ function getContext(name) {
 // 创建并初始化根上下文
 Object.assign(baseContext, {
 	...getContext(),
-	console: globalThis.console,
+	console: defaultConsole,
 	isTopLevel: true,
 })
 // 破坏循环引用，便于timer/jobs设置
@@ -265,20 +269,14 @@ baseContext.parentContext = { ...baseContext, parentContext: {} }
  * 一个代理对象，用于方便地访问当前异步上下文中的属性。
  * @type {TestContext}
  */
-export const context = new Proxy({}, {
-	get: (target, prop) => Reflect.get(testAsyncStorage.getStore() ?? baseContext, prop),
-	set: (target, prop, value) => Reflect.set(testAsyncStorage.getStore() ?? baseContext, prop, value),
-})
+export const context = new FullProxy(() => testAsyncStorage.getStore() ?? baseContext)
 
-// 全局console代理，将所有console调用重定向到当前测试上下文的虚拟控制台
-const originalConsole = console
-globalThis.console = new Proxy({}, {
-	get: (target, prop) => Reflect.get(context.console, prop),
-	getOwnPropertyDescriptor: (target, prop) => Reflect.getOwnPropertyDescriptor(originalConsole, prop),
-	getPrototypeOf: (target) => Reflect.getPrototypeOf(originalConsole),
-	set: (target, prop, value) => Reflect.set(context.console, prop, value),
-	setPrototypeOf: (target, value) => Reflect.setPrototypeOf(originalConsole, value)
-})
+// 将所有console调用重定向到当前测试上下文的虚拟控制台
+setGlobalConsoleReflect(
+	() => context.console,
+	(c) => testAsyncStorage.setStore({ ...context, console: c }),
+	(c, fn) => testAsyncStorage.run({ ...context, console: c }, fn),
+)
 
 function getMemoryUsage() {
 	globalThis.gc({
@@ -306,15 +304,17 @@ async function runTest(testName, testFunction, {
 	fail_emoji = EMOJI.fail,
 	is_top_level = false,
 } = {}) {
+	totalTests++
+	activeTestCount++
+
+	process.setMaxListeners(activeTestCount + 10)
 
 	const currentContext = getContext(testName)
 	if (is_top_level) currentContext.console = baseContext.console
 	const { testPath, parentContext, console: testConsole } = currentContext
 	currentContext.isTopLevel = is_top_level
 
-	totalTests++
 	const isTopLevelTestInFile = parentContext.isTopLevel !== false
-	activeTestCount++
 	if (parentContext.subtestCount !== undefined) parentContext.subtestCount++
 
 	const startTime = performance.now()
@@ -352,8 +352,12 @@ async function runTest(testName, testFunction, {
 					if (!is_top_level) inParallelProcessing--
 				}
 
-				if (Object(context.output) instanceof Array && context.output.length)
+				if (Object(context.output) instanceof Array) try {
+					await CI.wait(() => !context.output.length, 3000)
+				}
+				catch {
 					throw new Error('CI.output is not an empty array after the test, check your CI code.')
+				}
 			}
 			catch (error) {
 				testConsole.error(error)
@@ -381,7 +385,7 @@ async function runTest(testName, testFunction, {
 		if (startMemory && !inParallelProcessing) {
 			const endMemory = getMemoryUsage()
 			const diff = endMemory - startMemory
-			memoryUsage = `${diff > 0 ? '+' : '-'}${(diff / 1024 / 1024).toFixed(2)} MB`
+			memoryUsage = `${diff > 0 ? '+' : ''}${(diff / 1024 / 1024).toFixed(2)} MB`
 			memoryUsageStr = ` (mem: ${memoryUsage})`
 		}
 
@@ -529,8 +533,6 @@ await CI.test('Init Fount Server', async () => {
 		}
 	})
 	if (!result) throw new Error('Fount server failed to start')
-	const { registerAsyncLocalStorage } = await loadmjs(path.join(import.meta.dirname, './fount/src/server/async_storage.mjs'))
-	registerAsyncLocalStorage('charCI', testAsyncStorage)
 }, {
 	start_emoji: EMOJI.fount.start,
 	success_emoji: EMOJI.fount.success,
