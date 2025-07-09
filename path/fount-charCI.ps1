@@ -117,5 +117,5 @@ if (!$Char_CIfile) {
 	exit 1
 }
 
-deno run --allow-scripts --allow-all --node-modules-dir=auto --v8-flags=--expose-gc $CI_DIR/index.mjs $Char_CIfile
+deno run --allow-scripts --allow-all -c "$FOUNT_DIR/deno.json" --v8-flags=--expose-gc $CI_DIR/index.mjs $Char_CIfile
 exit $LastExitCode
