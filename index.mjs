@@ -690,4 +690,11 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 if (anyTestFailed) console.log(`😭 Char tests failed (${totalTests - passedTests} failures)`)
 else console.log(`🎉 Nice CI! All ${totalTests} tests passed.`)
 
+try {
+	fs.rmSync('./ci-workspaces', { recursive: true, force: true })
+} catch (error) {
+	console.error('Failed to remove ci-workspaces directory:')
+	console.error(error)
+}
+
 process.exit(Number(anyTestFailed))
