@@ -16,7 +16,6 @@ function loadmjs(file) {
 	await set_start()
 }
 import { createHash } from 'node:crypto'
-import { fileURLToPath } from 'node:url'
 
 import express from 'npm:express@^5.1.0'
 import cookieParser from 'npm:cookie-parser@^1.4.0'
@@ -182,7 +181,7 @@ function refineError(error) {
 	if (match) {
 		const [, filePath, line, column] = match
 		// 优先使用已有的信息，否则填充解析出的信息
-		error.fileName ??= filePath.startsWith('file://') ? fs.realpathSync(fileURLToPath(filePath)) : filePath
+		error.fileName ??= filePath.startsWith('file://') ? fs.realpathSync(url.fileURLToPath(filePath)) : filePath
 		error.lineNumber ??= Number(line)
 		error.columnNumber ??= Number(column)
 	}
@@ -333,9 +332,9 @@ async function runTest(testName, testFunction, {
 						await Promise.all(currentContext.hooks.beforeAll.map(hook => hook()))
 					}
 				}
-					finally {
-						inParallelProcessing--
-					}
+				finally {
+					inParallelProcessing--
+				}
 
 				await testFunction()
 
@@ -370,9 +369,9 @@ async function runTest(testName, testFunction, {
 					await Promise.all(parentContext.hooks.afterEach.map(hook => hook()))
 					await Promise.all(currentContext.hooks.afterAll.map(hook => hook()))
 				}
-					finally {
-						inParallelProcessing--
-					}
+				finally {
+					inParallelProcessing--
+				}
 				fs.rmSync(currentContext.api.workSpace.path, { recursive: true, force: true }) // 最终清理工作区
 			}
 		})
@@ -675,7 +674,7 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 				.replace(/::error (.*?)::(.*)/g, (match, properties, message) =>
 					`<details open><summary>${EMOJI.fail} <strong>Error: ${escapeHtml(message)}</strong></summary><code>${escapeHtml(properties)}</code></details>`
 				)
-				}</code></pre>` : 'N/A'
+			}</code></pre>` : 'N/A'
 			logs += '\n'
 		}
 	}
