@@ -8,6 +8,15 @@ import fs from 'node:fs'
 import process from 'node:process'
 import http from 'node:http'
 import url from 'node:url'
+
+const exit = process.exit
+process.exit = (code) => {
+	console.error('Process exit was called. This is not allowed in Char CI tests. Use "throw new Error()" to fail a test instead.')
+	console.error('Call Stack:')
+	console.trace()
+	exit(1)
+}
+
 function loadmjs(file) {
 	return import(url.pathToFileURL(file))
 }
@@ -109,7 +118,7 @@ const unhandledRejectionHandler = (reason, promise) => {
 	} else {
 		// 如果在测试上下文之外，打印到主控制台并退出
 		console.error('💥 [Unhandled Rejection outside test context]:', error.stack || error)
-		process.exit(1)
+		exit(1)
 	}
 	anyTestFailed = true
 }
@@ -540,7 +549,7 @@ await CI.test('Init Fount Server', async () => {
 
 if (anyTestFailed) {
 	console.log('😭 Fount server failed for start')
-	process.exit(1)
+	exit(1)
 }
 
 const { LoadChar, UnloadChar } = await loadmjs(path.join(import.meta.dirname, './fount/src/server/managers/char_manager.mjs'))
@@ -696,4 +705,4 @@ try {
 	console.error(error)
 }
 
-process.exit(Number(anyTestFailed))
+exit(Number(anyTestFailed))
