@@ -1,19 +1,26 @@
-// --- 初始 Fount 环境设置 ---
-// 这部分代码只在启动时运行一次，用于初始化Fount服务的基础环境。
-process.on('warning', e => console.warn(e.stack))
-
 import { AsyncLocalStorage } from 'node:async_hooks'
-import path from 'node:path'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
-import process from 'node:process'
 import http from 'node:http'
+import path from 'node:path'
+import process from 'node:process'
 import url from 'node:url'
+
+import { VirtualConsole, setGlobalConsoleReflect, defaultConsole } from 'npm:@steve02081504/virtual-console'
+import { registerContext } from 'npm:als-registry'
+import cookieParser from 'npm:cookie-parser'
+import express from 'npm:express'
+import fileUpload from 'npm:express-fileupload'
+import { FullProxy } from 'npm:full-proxy'
+import { Router as WsAbleRouter } from 'npm:websocket-express'
+
+process.on('warning', e => console.warn(e.stack))
 
 const exit = process.exit
 process.exit = (code) => {
-	console.error('Process exit was called. This is not allowed in Char CI tests. Use "throw new Error()" to fail a test instead.')
-	console.error('Call Stack:')
-	console.trace()
+	defaultConsole.error('Process exit was called. This is not allowed in Char CI tests. Use "throw new Error()" to fail a test instead.')
+	defaultConsole.error('Call Stack:')
+	defaultConsole.trace()
 	exit(1)
 }
 
@@ -24,16 +31,6 @@ function loadmjs(file) {
 	const { set_start } = await loadmjs(path.join(import.meta.dirname, './fount/src/server/base.mjs'))
 	await set_start()
 }
-import { createHash } from 'node:crypto'
-
-import express from 'npm:express@^5.1.0'
-import cookieParser from 'npm:cookie-parser@^1.4.0'
-import fileUpload from 'npm:express-fileupload@^1.5.0'
-import { Router as WsAbleRouter } from 'npm:websocket-express@^3.1.3'
-
-import { VirtualConsole, setGlobalConsoleReflect, defaultConsole } from 'npm:@steve02081504/virtual-console'
-import { FullProxy } from 'npm:full-proxy'
-import { registerContext } from 'npm:als-registry'
 
 // --- 全局变量和常量 ---
 const charname = process.env.CI_charname
