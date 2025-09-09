@@ -59,7 +59,7 @@ runs:
     - uses: actions/cache@v4
       with:
         path: ./node_modules
-        key: fount-charCI-node-modules
+        key: fount-charCI-node-modules-${{ runner.os }}-${{ runner.arch }}
     - run: |
         deno run --allow-scripts --allow-all --node-modules-dir=auto --v8-flags=--expose-gc $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
       shell: bash
@@ -69,7 +69,7 @@ runs:
       run: |
         cd $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/$CI_username/chars/$CI_charname
         gh extension install actions/gh-actions-cache
-        gh actions-cache delete "fount-charCI-node-modules" --confirm
+        gh actions-cache delete "fount-charCI-node-modules-${{ runner.os }}-${{ runner.arch }}" --confirm
         gh actions-cache delete "deno-cache-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('**/deno.lock') }}" --confirm
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -77,7 +77,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: ./node_modules
-        key: fount-charCI-node-modules
+        key: fount-charCI-node-modules-${{ runner.os }}-${{ runner.arch }}
     - name: get deno dir
       shell: bash
       run: echo "DENO_DIR=$(deno info --json | jq -r '.denoDir')" >> $GITHUB_ENV
