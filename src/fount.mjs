@@ -14,7 +14,10 @@ export async function initFount() {
 				Web: false,
 				IPC: false,
 				Tray: false,
-				DiscordRPC: false
+				DiscordRPC: false,
+				Base: {
+					AutoUpdate: false
+				}
 			}
 		})
 		if (!result) throw new Error('Fount server failed to start')
