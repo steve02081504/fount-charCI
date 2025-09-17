@@ -2,12 +2,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { defaultConsole } from 'npm:@steve02081504/virtual-console'
-
 import { CI } from './src/ci.mjs'
 import { context, initializeBaseContext, setupGlobalConsole } from './src/context.mjs'
 export { context }
 import { registerErrorHandlers } from './src/errors.mjs'
+import { exit, hookExit } from './src/exit.mjs'
 import { initFount, loadChar, unloadChar, setupCharFunctions } from './src/fount.mjs'
 import { setAnyTestFailed, anyTestFailed, totalTests, passedTests, CHAR_DIRECTORY, to_relative_path } from './src/globals.mjs'
 import { startServer } from './src/server.mjs'
@@ -16,22 +15,13 @@ import { loadmjs, refineError } from './src/utils.mjs'
 
 process.on('warning', e => console.warn(e.stack))
 
-const exit = process.exit
-process.exit = (code) => {
-	defaultConsole.error('Process exit was called. This is not allowed in Char CI tests. Use "throw new Error()" to fail a test instead.')
-	defaultConsole.error('Call Stack:')
-	defaultConsole.trace()
-	globalThis.exit(code)
-}
-
-globalThis.exit = exit
-
 async function main() {
 	{
 		const { set_start } = await loadmjs(path.join(import.meta.dirname, './fount/src/server/base.mjs'))
 		await set_start()
 	}
 
+	hookExit()
 	registerErrorHandlers()
 	await startServer()
 	initializeBaseContext()

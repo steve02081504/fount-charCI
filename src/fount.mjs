@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { CI } from './ci.mjs'
 import { context } from './context.mjs'
+import { exit } from './exit.mjs'
 import { EMOJI, anyTestFailed, charname, username } from './globals.mjs'
 import { loadmjs } from './utils.mjs'
 
@@ -29,7 +30,7 @@ export async function initFount() {
 
 	if (anyTestFailed) {
 		console.log('😭 Fount server failed for start')
-		process.exit(1)
+		exit(1)
 	}
 }
 
