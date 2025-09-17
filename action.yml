@@ -35,9 +35,22 @@ runs:
       shell: bash
     - name: Checkout user character repository
       run: |
-        git clone --depth 1 https://github.com/${{ github.repository }}.git $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/chars/CI-char
-        cd $GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/chars/CI-char
-        git checkout ${{ github.sha }}
+        TARGET_DIR="$GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/chars/CI-char"
+        git init "$TARGET_DIR"
+        cd "$TARGET_DIR"
+        git config --global "url.https://x-access-token:${{ inputs.github-token }}@github.com/".insteadOf "https://github.com/"
+        git remote add origin https://github.com/${{ github.repository }}.git
+        git fetch --depth 1 origin ${{ github.sha }}
+        ORI_DETACHED_HEAD_SETTING=$(git config --get advice.detachedHead || true)
+        git config advice.detachedHead false
+        git checkout FETCH_HEAD
+        git submodule update --init --recursive --depth 1
+        if [ -z "$ORI_DETACHED_HEAD_SETTING" ]; then
+          git config --unset advice.detachedHead
+        else
+          git config advice.detachedHead "$ORI_DETACHED_HEAD_SETTING"
+        fi
+        git config --global --unset "url.https://x-access-token:${{ inputs.github-token }}@github.com/".insteadOf
       shell: bash
     - run: |
         export CI_username=${{ inputs.CI-username }}
