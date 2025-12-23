@@ -35,10 +35,10 @@ export async function initFount() {
 }
 
 export async function loadChar() {
-	const { LoadChar } = await loadmjs(path.join(import.meta.dirname, '../fount/src/server/managers/char_manager.mjs'))
+	const { loadPart } = await loadmjs(path.join(import.meta.dirname, '../fount/src/server/parts_loader.mjs'))
 
 	await CI.test('Load Char', async () => {
-		CI.char = await LoadChar(username, charname)
+		CI.char = await loadPart(username, 'chars/' + charname)
 	}, {
 		start_emoji: EMOJI.char.load,
 		success_emoji: EMOJI.char.success,
@@ -47,10 +47,10 @@ export async function loadChar() {
 }
 
 export async function unloadChar() {
-	const { UnloadChar } = await loadmjs(path.join(import.meta.dirname, '../fount/src/server/managers/char_manager.mjs'))
+	const { unloadPart } = await loadmjs(path.join(import.meta.dirname, '../fount/src/server/parts_loader.mjs'))
 
 	await CI.test('Unload Char', async () => {
-		await UnloadChar(username, charname, 'CI complete')
+		await unloadPart(username, 'chars/' + charname, 'CI complete')
 	}, {
 		start_emoji: EMOJI.char.unload,
 		success_emoji: EMOJI.char.success,

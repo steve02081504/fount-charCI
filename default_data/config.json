@@ -9,7 +9,9 @@
 					"password": "1919810",
 					"loginAttempts": 0,
 					"lockedUntil": null,
-					"refreshTokens": []
+					"refreshTokens": [],
+					"apiKeys": [],
+					"apiRefreshTokens": []
 				},
 				"jobs": {},
 				"locales": [],
@@ -17,8 +19,10 @@
 				"timers": {}
 			}
 		},
-		"revokedTokens": {}
+		"revokedTokens": {},
+		"apiKeys": {}
 	},
 	"privateKey": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgBiR+4xFJsgG5AkxG\njhHn9/u7h9fUpgF0sIyP8q32kV2hRANCAARnSzgUtiNMHemHManmTG/5sDN5vEeJ\nZM7l2MZN/iV1UMLOEwe4daiB1hVZimX89sv9Cq+lIlqMLZI8VxUqXFQl\n-----END PRIVATE KEY-----\n",
-	"publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZ0s4FLYjTB3phzGp5kxv+bAzebxH\niWTO5djGTf4ldVDCzhMHuHWogdYVWYpl/PbL/QqvpSJajC2SPFcVKlxUJQ==\n-----END PUBLIC KEY-----\n"
+	"publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZ0s4FLYjTB3phzGp5kxv+bAzebxH\niWTO5djGTf4ldVDCzhMHuHWogdYVWYpl/PbL/QqvpSJajC2SPFcVKlxUJQ==\n-----END PUBLIC KEY-----\n",
+	"uuid": "d3ecb7b6-2a58-45e1-bbe2-ede9fa846e51"
 }

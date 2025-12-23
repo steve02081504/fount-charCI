@@ -1,6 +1,6 @@
 export default {
 	interfaces: {
-		AIsource: {
+		serviceGenerator: {
 			GetConfigTemplate: async () => configTemplate,
 			GetSource,
 		}
@@ -12,7 +12,7 @@ const configTemplate = {}
 import path from 'node:path'
 import url from 'node:url'
 
-import { structPromptToSingle } from '../../../../../src/public/shells/chat/src/prompt_struct.mjs'
+import { structPromptToSingle } from '../../../../../../src/public/parts/shells/chat/src/prompt_struct.mjs'
 const { context } = await import(url.pathToFileURL(path.resolve(process.env.GITHUB_ACTION_PATH + '/index.mjs')))
 
 function getOutput(output, result) {

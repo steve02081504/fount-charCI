@@ -8,6 +8,6 @@ export function hookExit() {
 		defaultConsole.error('Process exit was called. This is not allowed in Char CI tests. Use "throw new Error()" to fail a test instead.')
 		defaultConsole.error('Call Stack:')
 		defaultConsole.trace()
-		exit(code)
+		exit(1)
 	}
 }
