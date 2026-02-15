@@ -36,6 +36,7 @@ runs:
     - name: Checkout user character repository
       run: |
         TARGET_DIR="$GITHUB_ACTION_PATH/fount/.vm_data_charCI/users/${{ inputs.CI-username }}/chars/CI-char"
+        git config --global init.defaultBranch master
         git init "$TARGET_DIR"
         cd "$TARGET_DIR"
         git config --global "url.https://x-access-token:${{ inputs.github-token }}@github.com/".insteadOf "https://github.com/"
@@ -63,6 +64,9 @@ runs:
         # 保存 env
         echo "CI_charname=${CI_charname}" >> $GITHUB_ENV
         echo "CI_username=${CI_username}" >> $GITHUB_ENV
+        # 清理node_modules/.deno以外的文件
+        mkdir -p $GITHUB_ACTION_PATH/fount/node_modules/.deno
+        find $GITHUB_ACTION_PATH/fount/node_modules/ -mindepth 1 -maxdepth 1 ! -name ".deno" -exec rm -rf {} +
       shell: bash
     - uses: denoland/setup-deno@v2
       id: deno
@@ -74,7 +78,7 @@ runs:
         path: ./node_modules
         key: fount-charCI-node-modules-${{ runner.os }}-${{ runner.arch }}
     - run: |
-        deno run --allow-scripts --allow-all --unstable-npm-lazy-caching --node-modules-dir=auto --v8-flags=--expose-gc $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
+        deno run --allow-scripts --allow-all --unstable-npm-lazy-caching -c $GITHUB_ACTION_PATH/fount/deno.json --v8-flags=--expose-gc $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
       shell: bash
     - name: Delete Previous Cache # 删除之前的缓存确保缓存随着项目运行而更新
       continue-on-error: true

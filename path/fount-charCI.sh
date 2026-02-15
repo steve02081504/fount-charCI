@@ -203,5 +203,5 @@ if [[ -z "$Char_CIfile" ]]; then
 	exit 1
 fi
 
-deno run --allow-scripts --allow-all -c "$FOUNT_DIR/deno.json" --v8-flags=--expose-gc "$CI_DIR/index.mjs" "$Char_CIfile"
+deno run --allow-scripts --allow-all --unstable-npm-lazy-caching -c "$FOUNT_DIR/deno.json" --v8-flags=--expose-gc "$CI_DIR/index.mjs" "$Char_CIfile"
 exit $?
