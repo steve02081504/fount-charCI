@@ -1,11 +1,40 @@
 import path from 'node:path'
 
-import { loadJsonFile, saveJsonFile } from '../../../../../../src/scripts/json_loader.mjs'
+import { setPartData } from '../../../../../../src/public/parts/shells/config/src/manager.mjs'
+import { loadJsonFileIfExists, saveJsonFile } from '../../../../../../src/scripts/json_loader.mjs'
 import { loadPart } from '../../../../../../src/server/parts_loader.mjs'
 
 const configPath = import.meta.dirname + '/config.json'
-const data = loadJsonFile(configPath)
-const defaultInterfaces = {
+const data = loadJsonFileIfExists(configPath, { generator: '', config: {} })
+
+let username = ''
+const filename = path.basename(import.meta.dirname)
+
+/**
+ * 服务源模块。
+ */
+const self = {
+	filename,
+	/**
+	 * 加载服务源。
+	 * @param {object} initialData - 初始化参数对象。
+	 * @param {string} initialData.username - 用户名。
+	 * @returns {Promise<void>}
+	 */
+	async Load(initialData) {
+		username = initialData.username
+		const manager = await loadPart(username, 'serviceSources/AI')
+		Object.assign(this, await manager.interfaces.serviceSourceType.loadFromConfigData(username, data, {
+			/**
+			 * 将当前配置保存到部件数据。
+			 * @returns {void}
+			 */
+			SaveConfig: () => setPartData(username, `serviceSources/AI/${filename}`, data)
+		}))
+		Object.assign(this.interfaces, defaultInterfaces)
+	},
+}
+const defaultInterfaces = self.interfaces = {
 	config: {
 		/**
 		 * 获取配置数据。
@@ -16,32 +45,24 @@ const defaultInterfaces = {
 		},
 		/**
 		 * 设置配置数据。
-		 * @param {any} data - 要设置的配置数据。
+		 * @param {any} new_data - 要设置的新配置数据。
 		 * @returns {Promise<void>}
 		 */
 		async SetData(new_data) {
-			if (new_data.generator) data.generator = new_data.generator
-			if (new_data.config) data.config = new_data.config
+			if (new_data !== data) {
+				if (new_data.generator) data.generator = new_data.generator
+				if (new_data.config) { // 保持config对象不变，确保saveConfig有效
+					for (const key in data.config ??= {}) delete data.config[key]
+					Object.assign(data.config, new_data.config)
+				}
+				await self.Load({ username })
+			}
 			saveJsonFile(configPath, data)
-		},
-		/**
-		 * 获取配置显示内容。
-		 * @returns {Promise<{ html: string, js: string }>} - 显示内容。
-		 */
-		async GetConfigDisplayContent() {
-			return { html: '', js: '' }
 		}
 	}
 }
 
-export default {
-	filename: path.basename(import.meta.dirname),
-	async Load({ username }) {
-		const manager = await loadPart(username, 'serviceSources/AI')
-		Object.assign(this, await manager.interfaces.serviceSourceType.loadFromConfigData(username, data, {
-			SaveConfig: (newdata) => { saveJsonFile(configPath, Object.assign(data, newdata)) }
-		}))
-		Object.assign(this.interfaces, defaultInterfaces)
-	},
-	interfaces: defaultInterfaces
-}
+/**
+ * 服务源模块。
+ */
+export default self
