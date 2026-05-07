@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { VirtualConsole, setGlobalConsoleReflect, defaultConsole } from 'npm:@steve02081504/virtual-console'
+import { VirtualConsole, setGlobalConsoleResolver, defaultConsole } from 'npm:@steve02081504/virtual-console'
 import { registerContext } from 'npm:als-registry'
 import { FullProxy } from 'npm:full-proxy'
 import { Router as WsAbleRouter } from 'npm:websocket-express'
@@ -29,13 +29,18 @@ export function getContext(name) {
 	routers[testHash] = router // 注册动态路由
 
 	const console = new VirtualConsole({
-		base_console: baseConsole,
-		error_handler: (error) => {
+		baseConsole
+	})
+	console.addLogEntryListener((entry) => {
+		if (entry.level !== 'error') return
+		for (const arg of entry.args) if (arg instanceof Error) {
+			const error = arg
 			refineError(error)
 			const title = error.message.split('\n')[0]
 			const relativePath = to_relative_path(error.fileName)
 			console.log(`::error file=${relativePath},line=${error.lineNumber},endLine=${error.endLineNumber || error.lineNumber},col=${error.columnNumber},endColumn=${error.endColumnNumber || error.columnNumber},title=${EMOJI.fail} ${name}::${title}`)
 			console.error(error.stack)
+			break
 		}
 	})
 
@@ -80,7 +85,7 @@ export function initializeBaseContext() {
 export const context = new FullProxy(() => testAsyncStorage.getStore() ?? baseContext)
 
 export function setupGlobalConsole() {
-	setGlobalConsoleReflect(
+	setGlobalConsoleResolver(
 		() => context.console,
 		(c) => testAsyncStorage.setStore({ ...context, console: c }),
 		(c, fn) => testAsyncStorage.run({ ...context, console: c }, fn),
