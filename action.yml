@@ -1,8 +1,8 @@
 name: "fount-charCI"
 description: "run CI on fount character"
 branding:
-  color: "black"
-  icon: "activity"
+  color: gray-dark
+  icon: activity
 inputs:
   CI-filepath:
     description: "CI file path for testing your character"
@@ -64,9 +64,6 @@ runs:
         # 保存 env
         echo "CI_charname=${CI_charname}" >> $GITHUB_ENV
         echo "CI_username=${CI_username}" >> $GITHUB_ENV
-        # 清理node_modules/.deno以外的文件
-        mkdir -p $GITHUB_ACTION_PATH/fount/node_modules/.deno
-        find $GITHUB_ACTION_PATH/fount/node_modules/ -mindepth 1 -maxdepth 1 ! -name ".deno" -exec rm -rf {} +
       shell: bash
     - uses: denoland/setup-deno@v2
       id: deno
@@ -78,7 +75,7 @@ runs:
         path: ./node_modules
         key: fount-charCI-node-modules-${{ runner.os }}-${{ runner.arch }}
     - run: |
-        deno run --allow-scripts --allow-all --unstable-npm-lazy-caching -c $GITHUB_ACTION_PATH/fount/deno.json --v8-flags=--expose-gc $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
+        deno run --allow-scripts --allow-all --unstable-npm-lazy-caching -c $GITHUB_ACTION_PATH/fount/deno.json $GITHUB_ACTION_PATH/index.mjs ${{ inputs.CI-filepath }}
       shell: bash
     - name: Delete Previous Cache # 删除之前的缓存确保缓存随着项目运行而更新
       continue-on-error: true
@@ -90,15 +87,35 @@ runs:
         gh actions-cache delete "deno-cache-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('**/deno.lock') }}" --confirm
       env:
         GH_TOKEN: ${{ inputs.github-token }}
+    - name: clean node_modules
+      continue-on-error: true
+      shell: bash
+      run: |
+        FOUNT="$GITHUB_ACTION_PATH/fount"
+        CHAR_DIR="$FOUNT/.vm_data_charCI/users/$CI_username/chars/$CI_charname"
+        ENTRYPOINTS=()
+        add_entry() { [ -f "$1" ] && ENTRYPOINTS+=("$1"); }
+        # fount-charCI 与 fount 运行时动态加载的入口
+        add_entry "$GITHUB_ACTION_PATH/index.mjs"
+        add_entry "$FOUNT/src/server/server.mjs"
+        # 角色与其 CI 测试文件
+        add_entry "$CHAR_DIR/main.mjs"
+        add_entry "$CHAR_DIR/${{ inputs.CI-filepath }}"
+        [ ${#ENTRYPOINTS[@]} -eq 0 ] && exit 0
+        cd "$FOUNT"
+        deno clean --except "${ENTRYPOINTS[@]}"
     - name: Save Cache
+      continue-on-error: true
       uses: actions/cache/save@v4
       with:
         path: ./node_modules
         key: fount-charCI-node-modules-${{ runner.os }}-${{ runner.arch }}
     - name: get deno dir
+      continue-on-error: true
       shell: bash
       run: echo "DENO_DIR=$(deno info --json | jq -r '.denoDir')" >> $GITHUB_ENV
     - name: Save Cache
+      continue-on-error: true
       uses: actions/cache/save@v4
       with:
         path: ${{ env.DENO_DIR }}

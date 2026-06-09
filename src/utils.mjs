@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import process from 'node:process'
 import url from 'node:url'
-
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 
 export function loadmjs(file) {
 	return import(url.pathToFileURL(file))
@@ -38,7 +39,8 @@ export function refineError(error) {
 }
 
 export function getMemoryUsage() {
-	globalThis.gc({
+	setFlagsFromString('--expose_gc')
+	runInNewContext('gc')({
 		execution: 'sync',
 		flavor: 'last-resort',
 		type: 'major'

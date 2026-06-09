@@ -26,7 +26,6 @@
 				"--allow-all",
 				"--unstable-npm-lazy-caching",
 				"--node-modules-dir=auto",
-				"--v8-flags=--expose-gc",
 			],
 			"attachSimplePort": 9229
 		}
