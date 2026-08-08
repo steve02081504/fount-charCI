@@ -12,7 +12,7 @@ const configTemplate = {}
 import path from 'node:path'
 import url from 'node:url'
 
-import { structPromptToSingle } from '../../../../../../src/public/parts/shells/chat/src/prompt_struct.mjs'
+import { structPromptToSingle } from '../../../../../../src/public/parts/shells/chat/src/prompt_struct/index.mjs'
 const { context } = await import(url.pathToFileURL(path.resolve(process.env.GITHUB_ACTION_PATH + '/index.mjs')))
 
 function getOutput(output, result) {
@@ -62,15 +62,18 @@ async function GetSource(config) {
 				throw e
 			}
 		},
-		StructCall: async (/** @type {prompt_struct_t} */ prompt_struct) => {
+		StructCall: async (/** @type {prompt_struct_t} */ prompt_struct, options = {}) => {
 			const CI = context
+			const { base_result = {}, replyPreviewUpdater } = options
 			CI.result ??= {}
 			CI.result.prompt_struct = prompt_struct
 			CI.result.prompt_single = structPromptToSingle(prompt_struct)
 			try {
-				return {
+				const result = {
 					content: await getOutput(CI.output, CI.result)
 				}
+				replyPreviewUpdater?.(result)
+				return Object.assign(base_result, result)
 			}
 			catch(e) {
 				CI.isFailed = true

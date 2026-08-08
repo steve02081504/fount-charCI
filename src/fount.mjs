@@ -16,12 +16,13 @@ export async function initFount() {
 				IPC: false,
 				Tray: false,
 				DiscordRPC: false,
+				P2P: false,
 				Base: {
 					AutoUpdate: false
 				}
 			}
 		})
-		if (!result) throw new Error('Fount server failed to start')
+		if (!result) throw new Error('fount server failed to start')
 	}, {
 		start_emoji: EMOJI.fount.start,
 		success_emoji: EMOJI.fount.success,
@@ -29,7 +30,7 @@ export async function initFount() {
 	})
 
 	if (anyTestFailed) {
-		console.log('😭 Fount server failed for start')
+		console.log('😭 fount server failed for start')
 		exit(1)
 	}
 }
@@ -61,30 +62,50 @@ export async function unloadChar() {
 function get_req(diff) {
 	let result
 	const { char } = CI
+	const UserUid = 'ci-user'
+	const CharUid = 'ci-char'
 	return result = {
 		supported_functions: {
-			markdown: true, mathjax: true, html: true, unsafe_html: true, files: true, add_message: true,
+			markdown: true,
+			mathjax: true,
+			html: true,
+			unsafe_html: true,
+			files: true,
+			add_message: true,
+			fount_i18nkeys: true,
+			fount_assets: true,
+			fount_themes: true,
 		},
 		chat_name: 'CI',
-		chat_id: 0,
 		char_id: charname,
 		username,
 		UserCharname: username,
+		UserUid,
 		Charname: Object.values(char.info || {})[0]?.name || charname,
+		CharUid,
 		locales: ['en-UK'],
-		chat_log: [],
+		time: new Date(),
+		chat_summary: '',
 		Update: async () => result,
 		AddChatLogEntry: async (entry) => {
-			result.chat_log.push({ name: entry.role, content: '', files: [], ...entry })
+			const written = { name: entry.role, content: '', files: [], ...entry }
+			result.chat_log.push(written)
+			return written
 		},
-		world: null, char, user: null, other_chars: {}, chat_scoped_char_memory: {}, plugins: {}, extension: {},
-		...diff
+		world: null,
+		char,
+		user: null,
+		other_chars: {},
+		chat_scoped_char_memory: {},
+		plugins: {},
+		extension: {},
+		...diff,
 	}
 }
 
 export function setupCharFunctions() {
 	const { char } = CI
-	if (char?.interfaces.config && char?.interfaces.chat) {
+	if (char?.interfaces.chat) {
 		CI.runOutput = async (output, request) => {
 			if (Object(context.output) instanceof Array && context.output.length) {
 				context.isFailed = true
