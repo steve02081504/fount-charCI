@@ -95,8 +95,6 @@ function get_req(diff) {
 		CharUid,
 		locales: ['en-UK'],
 		time: new Date(),
-		chat_log,
-		timelines: [chat_log],
 		chat_summary: '',
 		Update: async () => result,
 		AddChatLogEntry: async (entry) => {
