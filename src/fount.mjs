@@ -59,11 +59,15 @@ export async function unloadChar() {
 	})
 }
 
-function get_req(diff) {
+async function get_req(diff) {
 	let result
 	const { char } = CI
 	const UserUid = 'ci-user'
 	const CharUid = 'ci-char'
+	const { BUILTIN_WORLD, BUILTIN_PERSONA } = await loadmjs(path.join(
+		import.meta.dirname,
+		'../fount/src/public/parts/shells/chat/src/chat/session/builtinParts.mjs',
+	))
 	const normalizeEntry = (entry) => ({
 		name: entry.name ?? entry.role ?? 'user',
 		uid: entry.uid ?? (entry.role === 'char' ? CharUid : UserUid),
@@ -102,9 +106,9 @@ function get_req(diff) {
 			result.chat_log.push(written)
 			return written
 		},
-		world: null,
+		world: BUILTIN_WORLD,
 		char,
-		user: null,
+		user: BUILTIN_PERSONA,
 		other_chars: {},
 		chat_scoped_char_memory: {},
 		plugins: {},
@@ -124,7 +128,7 @@ export function setupCharFunctions() {
 				throw new Error('CI.output is not an empty array after the reqly, check your CI code.')
 			}
 			context.output = output
-			const req = get_req(request)
+			const req = await get_req(request)
 			const result = await char.interfaces.chat.GetReply(req)
 			return result
 		}
@@ -133,7 +137,7 @@ export function setupCharFunctions() {
 			if (!Array.isArray(input)) input = [input]
 
 			context.result = {}
-			const req = get_req({ chat_log: input, ...request })
+			const req = await get_req({ chat_log: input, ...request })
 			const reply = await char.interfaces.chat.GetReply(req)
 			return {
 				reply,
