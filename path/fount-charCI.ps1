@@ -117,5 +117,34 @@ if (!$Char_CIfile) {
 	exit 1
 }
 
-deno run --allow-scripts --allow-all --unstable-npm-lazy-caching -c "$FOUNT_DIR/deno.json" $CI_DIR/index.mjs $Char_CIfile
-exit $LastExitCode
+# 本地运行会通过 junction 直接把角色目录接入 CI，角色的 data_files 会被 CI 改写。
+# 为避免污染真实角色数据，运行前备份这些目录/文件，运行后还原。
+$DataBackupDir = Join-Path $CI_DIR '.ci-data-backup'
+Remove-Item -Recurse -Force $DataBackupDir -ErrorAction Ignore
+$BackedUpDataFiles = @()
+foreach ($DataFile in @($CharData.data_files)) {
+	if (-not $DataFile) { continue }
+	$DataSource = Join-Path $Char_Dir $DataFile
+	if (Test-Path -LiteralPath $DataSource) {
+		$DataBackupPath = Join-Path $DataBackupDir $DataFile
+		New-Item -ItemType Directory -Path (Split-Path -Parent $DataBackupPath) -Force -ErrorAction Ignore | Out-Null
+		Copy-Item -LiteralPath $DataSource -Destination $DataBackupPath -Recurse -Force
+		$BackedUpDataFiles += $DataFile
+	}
+}
+
+try {
+	deno run --allow-scripts --allow-all --unstable-npm-lazy-caching -c "$FOUNT_DIR/deno.json" $CI_DIR/index.mjs $Char_CIfile
+	$ExitCode = $LastExitCode
+}
+finally {
+	foreach ($DataFile in $BackedUpDataFiles) {
+		$DataSource = Join-Path $Char_Dir $DataFile
+		$DataBackupPath = Join-Path $DataBackupDir $DataFile
+		Remove-Item -Recurse -Force -LiteralPath $DataSource -ErrorAction Ignore
+		New-Item -ItemType Directory -Path (Split-Path -Parent $DataSource) -Force -ErrorAction Ignore | Out-Null
+		Copy-Item -LiteralPath $DataBackupPath -Destination $DataSource -Recurse -Force
+	}
+	Remove-Item -Recurse -Force $DataBackupDir -ErrorAction Ignore
+}
+exit $ExitCode

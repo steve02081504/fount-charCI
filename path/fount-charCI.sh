@@ -203,5 +203,30 @@ if [[ -z "$Char_CIfile" ]]; then
 	exit 1
 fi
 
+# 本地运行会通过符号链接直接把角色目录接入 CI，角色的 data_files 会被 CI 改写。
+# 为避免污染真实角色数据，运行前备份这些目录/文件，运行后还原。
+DATA_BACKUP_DIR="$CI_DIR/.ci-data-backup"
+rm -rf "$DATA_BACKUP_DIR"
+BACKED_UP_DATA_FILES=()
+while IFS= read -r DataFile; do
+	[ -z "$DataFile" ] && continue
+	DataSource="$Char_Dir/$DataFile"
+	if [ -e "$DataSource" ]; then
+		mkdir -p "$(dirname "$DATA_BACKUP_DIR/$DataFile")"
+		cp -a "$DataSource" "$DATA_BACKUP_DIR/$DataFile"
+		BACKED_UP_DATA_FILES+=("$DataFile")
+	fi
+done < <(jq -r '.data_files[]? // empty' "$FOUNT_JSON_PATH")
+
 deno run --allow-scripts --allow-all --unstable-npm-lazy-caching -c "$FOUNT_DIR/deno.json" "$CI_DIR/index.mjs" "$Char_CIfile"
-exit $?
+EXIT_CODE=$?
+
+for DataFile in "${BACKED_UP_DATA_FILES[@]}"; do
+	DataSource="$Char_Dir/$DataFile"
+	rm -rf "$DataSource"
+	mkdir -p "$(dirname "$DataSource")"
+	cp -a "$DATA_BACKUP_DIR/$DataFile" "$DataSource"
+done
+rm -rf "$DATA_BACKUP_DIR"
+
+exit $EXIT_CODE

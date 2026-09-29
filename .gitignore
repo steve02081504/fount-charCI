@@ -1,6 +1,9 @@
 /node_modules
 /fount
 /.ci-workspaces
+/.ci-data-backup
 /default_data/users/CI-user/chars
 /default_data/users/CI-user/settings
 /default_data/users/CI-user/shells
+/default_data/users/CI-user/entities
+/default_data/p2p

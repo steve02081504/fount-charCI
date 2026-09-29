@@ -99,6 +99,11 @@ function get_req(diff) {
 		chat_scoped_char_memory: {},
 		plugins: {},
 		extension: {},
+		// 让角色的多轮重生成循环持续到 AI 输出不再是工具调用为止，
+		// 以配合 CI 的多步 output 数组（真实聊天 shell 由唤醒机制驱动，代码 shell 由 finishRound 驱动）。
+		generation_options: {
+			finishRound: async () => true,
+		},
 		...diff,
 	}
 }
@@ -127,6 +132,59 @@ export function setupCharFunctions() {
 				reply,
 				prompt_struct: context.result.prompt_struct,
 				prompt_single: context.result.prompt_single
+			}
+		}
+
+		/**
+		 * 用一段独立输出队列构造临时的 mock AI 源对象（AIsource_t 形状），
+		 * 供测试通过请求的 `ai_sources: { 名称: 源 }` 指定给子代理等嵌套生成，
+		 * 避免子代与父代争抢同一个 `context.output` 队列。
+		 * @param {string | object[] | (() => any)} output - 输出（字符串 / 逐次取用的数组 / 函数）
+		 * @returns {object} mock AI 源
+		 */
+		CI.createAISource = output => {
+			const next = value => {
+				if (value == null) return 'If I never see you again, good morning, good afternoon, and good night.'
+				if (Object(value) instanceof Array) {
+					if (!value.length) throw new Error('CI.createAISource 的输出数组已耗尽，请检查 CI 代码。')
+					return next(value.shift())
+				}
+				if (Object(value) instanceof Function) return next(value())
+				return value
+			}
+			return {
+				filename: 'CI-temporary',
+				type: 'text-chat',
+				info: {
+					'': {
+						name: 'CI-temporary',
+						avatar: '',
+						provider: 'CI',
+						description: 'CI 临时 AI 源',
+						description_markdown: 'CI 临时 AI 源',
+						version: '0.0.0',
+						author: 'CI',
+						homepage: '',
+						tags: [],
+					}
+				},
+				is_paid: false,
+				extension: {},
+				Unload: () => { },
+				Call: async () => ({ content: next(output) }),
+				StructCall: async (prompt_struct, options = {}) => {
+					const { base_result = {}, replyPreviewUpdater } = options
+					const result = { content: next(output) }
+					replyPreviewUpdater?.(result)
+					return Object.assign(base_result, result)
+				},
+				Tokenizer: {
+					free: () => 0,
+					encode: prompt => prompt,
+					decode: tokens => tokens,
+					decode_single: token => token,
+					get_token_count: prompt => prompt.length,
+				},
 			}
 		}
 	}
